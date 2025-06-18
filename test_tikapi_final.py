@@ -13,7 +13,7 @@ except ImportError:
 
 # API configuration
 API_KEY = "iLLGx2LbZskKRHGcZF7lcilNoL6BPNGeJM1p0CFgoVaD2Nnx"
-test_username = "27travels"
+test_username = "8jelly8"
 
 print(f"Testing TikAPI - Getting recent posts for: {test_username}")
 print("=" * 60)
@@ -60,7 +60,9 @@ try:
                     
                     for i, post in enumerate(posts[:5]):  # Show first 5 posts
                         print(f"\n--- Post {i+1} ---")
-                        print(f"ID: {post.get('id')}")
+                        post_id = post.get('id')
+                        print(f"ID: {post_id}")
+                        print(f"TikTok URL: https://www.tiktok.com/@{unique_id}/video/{post_id}")
                         
                         desc = post.get('desc', 'No description')
                         print(f"Description: {desc[:100]}{'...' if len(desc) > 100 else ''}")
