@@ -109,18 +109,24 @@ Rank and return top 20
 
 ## 🔧 Development
 
-### Current Files
+### Core Files
 - `tikapi_client.py` - Modular TikAPI client for creator analysis
-- `tiktok_mcp_client.py` - TikTok MCP integration with intelligent caching
-- `screen_creators.py` - Bulk creator screening with dual filtering criteria
-- `analyze_creator.py` - Complete workflow combining TikAPI + MCP + LLM analysis
-- `data.csv` - Creator database (converted from Excel)
-- `qualified_creators.csv` - Output of screening with qualified creators and their metrics
+- `tiktok_mcp_client.py` - TikTok MCP integration with intelligent caching  
+- `screen_creators.py` - **Main Entry Point** - Bulk creator screening system
+- `analyze_creator.py` - Complete workflow orchestrating TikAPI + MCP + LLM analysis
+- `data.csv` - Creator database (10 sample creators)
+- `qualified_creators.csv` - Screening output with qualified creators and metrics
+- `subtitle_cache/` - Intelligent caching directory for API credit conservation
+
+### Usage
+1. **Main Entry Point**: Run `python screen_creators.py` to screen all creators
+2. **Individual Analysis**: Use `analyze_creator.py` for detailed single creator analysis
+3. **Modular Components**: Import `tikapi_client` or `tiktok_mcp_client` for custom workflows
 
 ### Contributing
-1. Test new creator usernames in `test_tikapi_final.py`
-2. Expand content analysis capabilities
-3. Add new data sources and APIs
+1. Use modular components for testing new functionality
+2. Expand content analysis capabilities in `analyze_creator.py`
+3. Add new filtering criteria in `screen_creators.py`
 
 ## 📈 Long-term Vision
 
