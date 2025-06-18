@@ -1,6 +1,9 @@
 """
 Bulk Creator Performance Screening
-Screen all creators in data.csv for recent engagement performance
+Screen all creators in data.csv for recent video engagement performance
+- Filters out photo carousel posts (focuses on video content only)
+- Requires 3+ recent video posts for analysis
+- Dual criteria: 5K+ avg views AND posted within 60 days
 """
 import pandas as pd
 import csv
@@ -42,7 +45,8 @@ class CreatorScreener:
             
             if result['qualified']:
                 self.qualified_creators.append(result)
-                print(f"✅ QUALIFIED - Avg: {result['avg_views']:,} views, {result['days_since_last_post']} days ago")
+                photo_filter_info = f" ({result['photo_posts_filtered']} photos filtered)" if result.get('photo_posts_filtered', 0) > 0 else ""
+                print(f"✅ QUALIFIED - Avg: {result['avg_views']:,} views, {result['days_since_last_post']} days ago{photo_filter_info}")
             else:
                 self.failed_creators.append(result)
                 if result['error']:
@@ -74,19 +78,29 @@ class CreatorScreener:
             profile = result['profile']
             all_posts = result['posts']
             
-            # Filter recent posts (excluding potential pinned posts)
-            recent_posts = self._filter_recent_posts(all_posts, 5)
+            # Filter recent posts (excluding potential pinned posts and photo carousels)
+            recent_posts = self._filter_recent_posts(all_posts, 8)  # Get more to account for filtering
+            video_posts = [post for post in recent_posts if not post.get('is_photo_post', False)][:5]  # Only video posts
             
-            # Calculate metrics
-            avg_views = self._calculate_average_views(recent_posts)
+            # Calculate metrics using only video posts
+            if len(video_posts) < 3:
+                return {
+                    'username': username,
+                    'qualified': False,
+                    'error': None,
+                    'failure_reason': f"Insufficient video content ({len(video_posts)} videos, need 3+)",
+                    'original_data': creator_info
+                }
+            
+            avg_views = self._calculate_average_views(video_posts)
             total_engagement = sum(
                 post['stats']['likes'] + post['stats']['comments'] + post['stats']['shares'] 
-                for post in recent_posts
+                for post in video_posts
             )
-            avg_engagement = total_engagement // len(recent_posts) if recent_posts else 0
+            avg_engagement = total_engagement // len(video_posts)
             
-            # Check recency of most recent post
-            most_recent_post = recent_posts[0] if recent_posts else None
+            # Check recency of most recent video post
+            most_recent_post = video_posts[0] if video_posts else None
             days_since_last_post = None
             
             if most_recent_post:
@@ -113,7 +127,9 @@ class CreatorScreener:
                 'username': username,
                 'nickname': profile['nickname'],
                 'followers': profile['followers'],
-                'total_posts_analyzed': len(recent_posts),
+                'total_posts_analyzed': len(video_posts),
+                'video_posts_found': len(video_posts),
+                'photo_posts_filtered': len(recent_posts) - len(video_posts),
                 'avg_views': avg_views,
                 'avg_engagement': avg_engagement,
                 'days_since_last_post': days_since_last_post,
@@ -129,9 +145,10 @@ class CreatorScreener:
                         'likes': post['stats']['likes'],
                         'comments': post['stats']['comments'],
                         'date': post['formatted_date'],
-                        'tiktok_url': post['tiktok_url']
+                        'tiktok_url': post['tiktok_url'],
+                        'content_type': post.get('content_type', 'video')
                     }
-                    for post in recent_posts[:5]  # Store top 5 recent posts
+                    for post in video_posts[:5]  # Store top 5 recent video posts only
                 ]
             }
             
@@ -172,19 +189,22 @@ class CreatorScreener:
                 'followers': creator['followers'],
                 'avg_views': creator['avg_views'],
                 'avg_engagement': creator['avg_engagement'],
-                'total_posts_analyzed': creator['total_posts_analyzed'],
+                'video_posts_analyzed': creator['total_posts_analyzed'],
+                'photo_posts_filtered': creator.get('photo_posts_filtered', 0),
+                'days_since_last_post': creator.get('days_since_last_post', 'N/A'),
                 'original_email': creator['original_data'].get('email', ''),
                 'original_bio_link': creator['original_data'].get('bio_link', ''),
                 'original_region': creator['original_data'].get('region', ''),
             }
             
-            # Add recent post details (up to 5 posts)
+            # Add recent post details (up to 5 video posts only)
             for i, post in enumerate(creator['recent_posts'][:5], 1):
                 row[f'post{i}_views'] = post['views']
                 row[f'post{i}_likes'] = post['likes']
                 row[f'post{i}_description'] = post['description']
                 row[f'post{i}_url'] = post['tiktok_url']
                 row[f'post{i}_date'] = post['date']
+                row[f'post{i}_content_type'] = post.get('content_type', 'video')
             
             csv_data.append(row)
         

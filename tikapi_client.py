@@ -67,14 +67,20 @@ class TikAPIClient:
                 
                 processed_posts = []
                 for post in posts[:count]:
+                    # Detect if this is a photo carousel vs video
+                    is_photo_post = 'imagePost' in post
+                    duration = post.get('video', {}).get('duration', 0) if not is_photo_post else 0
+                    
                     post_data = {
                         'id': post.get('id'),
                         'description': post.get('desc', ''),
                         'create_time': post.get('createTime'),
                         'formatted_date': self._format_timestamp(post.get('createTime')),
-                        'duration': post.get('video', {}).get('duration', 0),
-                        'video_url': post.get('video', {}).get('playAddr', ''),
-                        'download_url': post.get('video', {}).get('downloadAddr', ''),
+                        'duration': duration,
+                        'is_photo_post': is_photo_post,
+                        'content_type': 'photo_carousel' if is_photo_post else 'video',
+                        'video_url': post.get('video', {}).get('playAddr', '') if not is_photo_post else '',
+                        'download_url': post.get('video', {}).get('downloadAddr', '') if not is_photo_post else '',
                         'stats': {
                             'views': post.get('stats', {}).get('playCount', 0),
                             'likes': post.get('stats', {}).get('diggCount', 0),
@@ -82,6 +88,16 @@ class TikAPIClient:
                             'shares': post.get('stats', {}).get('shareCount', 0)
                         }
                     }
+                    
+                    # Add photo-specific data if it's a photo post
+                    if is_photo_post:
+                        image_post = post['imagePost']
+                        post_data['photo_count'] = len(image_post.get('images', []))
+                        post_data['photo_urls'] = [
+                            img['imageURL']['urlList'][0] if img.get('imageURL', {}).get('urlList') else ''
+                            for img in image_post.get('images', [])
+                        ]
+                    
                     processed_posts.append(post_data)
                 
                 return {
