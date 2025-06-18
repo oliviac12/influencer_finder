@@ -181,14 +181,58 @@ class TikTokMCPClient:
 class SimpleTikTokMCPClient:
     """Simplified MCP client using direct command calls"""
     
-    def __init__(self):
+    def __init__(self, cache_dir="subtitle_cache"):
         self.server_path = "/Users/oliviachen/tiktok-mcp/build/index.js"
-        self.api_key = "9666be95906e253f99c347bfa7ccac4f"
+        self.api_key = "a8b6e7fcc74ca59cfbbff32b10f422f7"
+        self.cache_dir = cache_dir
+        
+        # Create cache directory if it doesn't exist
+        if not os.path.exists(cache_dir):
+            os.makedirs(cache_dir)
+    
+    def _get_cache_filename(self, tiktok_url):
+        """Generate cache filename from TikTok URL"""
+        import hashlib
+        url_hash = hashlib.md5(tiktok_url.encode()).hexdigest()
+        # Extract video ID from URL for readability
+        video_id = tiktok_url.split('/')[-1] if '/' in tiktok_url else url_hash[:8]
+        return f"{self.cache_dir}/subtitles_{video_id}_{url_hash[:8]}.json"
+    
+    def _load_cached_subtitles(self, tiktok_url):
+        """Load subtitles from cache if available"""
+        cache_file = self._get_cache_filename(tiktok_url)
+        if os.path.exists(cache_file):
+            try:
+                with open(cache_file, 'r', encoding='utf-8') as f:
+                    cached_data = json.load(f)
+                    cached_data['from_cache'] = True
+                    return cached_data
+            except Exception as e:
+                print(f"Warning: Failed to load cache for {tiktok_url}: {e}")
+        return None
+    
+    def _save_to_cache(self, tiktok_url, result):
+        """Save subtitle result to cache"""
+        cache_file = self._get_cache_filename(tiktok_url)
+        try:
+            with open(cache_file, 'w', encoding='utf-8') as f:
+                json.dump(result, f, indent=2, ensure_ascii=False)
+            print(f"💾 Cached subtitles to: {cache_file}")
+        except Exception as e:
+            print(f"Warning: Failed to cache subtitles for {tiktok_url}: {e}")
     
     def extract_subtitles(self, tiktok_url):
         """
-        Extract subtitles using direct MCP command
+        Extract subtitles using direct MCP command with caching
         """
+        # Check cache first
+        cached_result = self._load_cached_subtitles(tiktok_url)
+        if cached_result:
+            print(f"📁 Using cached subtitles for {tiktok_url}")
+            return cached_result
+        
+        print(f"🔄 Extracting subtitles from API for {tiktok_url}")
+        
         try:
             # Prepare MCP request as JSON-RPC
             request = {
@@ -255,27 +299,36 @@ class SimpleTikTokMCPClient:
                         content = result_data["content"]
                         if content and len(content) > 0:
                             subtitle_text = content[0].get("text", "")
-                            return {
+                            result = {
                                 'success': True,
                                 'subtitles': subtitle_text,
                                 'url': tiktok_url,
-                                'raw_response': response
+                                'raw_response': response,
+                                'from_cache': False
                             }
+                            # Cache the successful result
+                            self._save_to_cache(tiktok_url, result)
+                            return result
                     elif isinstance(result_data, str):
                         # Direct string response
-                        return {
+                        result = {
                             'success': True,
                             'subtitles': result_data,
                             'url': tiktok_url,
-                            'raw_response': response
+                            'raw_response': response,
+                            'from_cache': False
                         }
+                        # Cache the successful result
+                        self._save_to_cache(tiktok_url, result)
+                        return result
                 
                 return {
                     'success': False,
                     'error': 'No subtitle content found in response',
                     'url': tiktok_url,
                     'raw_response': response,
-                    'stdout': result.stdout[:300]
+                    'stdout': result.stdout[:300],
+                    'debug_lines': lines[:3]  # Show first few lines for debugging
                 }
             else:
                 return {
