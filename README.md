@@ -8,11 +8,16 @@ This project addresses the challenge of scaling influencer discovery and outreac
 
 ## ✅ Current Status
 
-**Phase 1: TikAPI Integration Complete**
+**Phase 1: TikAPI Integration & Creator Screening Complete**
 - ✅ Successfully integrated TikAPI for creator data fetching
-- ✅ Can retrieve creator profiles, follower counts, and recent posts
+- ✅ Can retrieve creator profiles, follower counts, and recent posts  
 - ✅ Extract video URLs, engagement metrics, and content descriptions
-- ✅ Working implementation in `test_tikapi_final.py`
+- ✅ Built modular TikAPI client (`tikapi_client.py`)
+- ✅ Implemented TikTok MCP integration for subtitle extraction (`tiktok_mcp_client.py`)
+- ✅ Created bulk creator screening system (`screen_creators.py`)
+- ✅ Added dual filtering: engagement thresholds (5K+ avg views) + recency (60 days max)
+- ✅ Intelligent caching system to preserve API credits
+- ✅ CSV-based creator database processing (`data.csv` → `qualified_creators.csv`)
 
 ## 🚀 Quick Start
 
@@ -59,8 +64,19 @@ Rank and return top 20
 ### Phase 1: Discovery & Analysis ✅
 - [x] TikAPI integration for content fetching
 - [x] Creator profile and post retrieval
+- [x] Bulk creator screening with engagement + recency filters
+- [x] Intelligent caching system for API credit conservation
+- [x] TikTok MCP integration for subtitle extraction
 - [ ] LLM-powered content analysis
 - [ ] Basic search functionality
+
+### Next Steps: Screening Improvements
+- [ ] **Enhanced Recency Filtering**: Current 60-day threshold may be too strict - need to analyze optimal recency window
+- [ ] **Pinned Post Detection**: Better filtering to exclude promotional/pinned content from engagement calculations  
+- [ ] **Engagement Rate Thresholds**: Add engagement rate minimums in addition to raw view counts
+- [ ] **Content Quality Indicators**: Factor in caption quality, hashtag strategy, and content consistency
+- [ ] **Category-Specific Filtering**: Different thresholds for travel vs lifestyle vs food creators
+- [ ] **Seasonal Adjustments**: Account for posting patterns during holidays/travel seasons
 
 ### Phase 2: Agentic Outreach
 - [ ] Automatically draft personalized outreach
@@ -94,9 +110,12 @@ Rank and return top 20
 ## 🔧 Development
 
 ### Current Files
-- `test_tikapi_final.py` - Working TikAPI implementation
-- `sample_creators.md` - Sample creator data
-- `data.xlsx` - Creator database
+- `tikapi_client.py` - Modular TikAPI client for creator analysis
+- `tiktok_mcp_client.py` - TikTok MCP integration with intelligent caching
+- `screen_creators.py` - Bulk creator screening with dual filtering criteria
+- `analyze_creator.py` - Complete workflow combining TikAPI + MCP + LLM analysis
+- `data.csv` - Creator database (converted from Excel)
+- `qualified_creators.csv` - Output of screening with qualified creators and their metrics
 
 ### Contributing
 1. Test new creator usernames in `test_tikapi_final.py`

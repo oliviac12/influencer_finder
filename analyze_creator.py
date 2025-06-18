@@ -11,7 +11,7 @@ class CreatorAnalyzer:
         self.tikapi_client = TikAPIClient(tikapi_key)
         self.mcp_client = SimpleTikTokMCPClient()
     
-    def analyze_creator(self, username, post_count=5, extract_subtitles=True):
+    def analyze_creator(self, username, post_count=5, extract_subtitles=True, min_avg_views=5000):
         """
         Complete creator analysis workflow
         
@@ -19,6 +19,7 @@ class CreatorAnalyzer:
             username: TikTok creator username
             post_count: Number of recent posts to analyze
             extract_subtitles: Whether to extract subtitles (requires API credits)
+            min_avg_views: Minimum average views required before extracting subtitles
             
         Returns:
             dict: Complete analysis results
@@ -26,9 +27,9 @@ class CreatorAnalyzer:
         print(f"🔍 Analyzing creator: @{username}")
         print("=" * 60)
         
-        # Step 1: Get creator profile and posts
+        # Step 1: Get creator profile and posts (fetch more initially for filtering)
         print("1. Fetching creator data...")
-        creator_data = self.tikapi_client.get_creator_analysis(username, post_count)
+        creator_data = self.tikapi_client.get_creator_analysis(username, post_count + 5)  # Get extra posts for filtering
         
         if not creator_data['success']:
             return {
@@ -37,16 +38,37 @@ class CreatorAnalyzer:
             }
         
         profile = creator_data['profile']
-        posts = creator_data['posts']
+        all_posts = creator_data['posts']
         
         print(f"✅ Profile: {profile['nickname']} (@{profile['username']})")
         print(f"   Followers: {profile['followers']:,}")
-        print(f"   Posts analyzed: {len(posts)}")
+        print(f"   Total posts fetched: {len(all_posts)}")
         
-        # Step 2: Extract subtitles if requested
+        # Step 2: Filter out pinned posts and get recent posts for analysis
+        recent_posts = self._filter_recent_posts(all_posts, post_count)
+        posts = recent_posts[:post_count]  # Limit to requested count
+        
+        # Step 3: Check average views before extracting subtitles
+        if extract_subtitles:
+            avg_views = self._calculate_average_views(recent_posts[:5])  # Check last 5 posts
+            print(f"\n2. Checking engagement threshold...")
+            print(f"   Average views (last 5 posts): {avg_views:,}")
+            print(f"   Minimum required: {min_avg_views:,}")
+            
+            if avg_views < min_avg_views:
+                print(f"   ⚠️  Below threshold - skipping subtitle extraction")
+                extract_subtitles = False
+                skip_reason = f"Average views ({avg_views:,}) below minimum ({min_avg_views:,})"
+            else:
+                print(f"   ✅ Above threshold - proceeding with subtitle extraction")
+                skip_reason = None
+        else:
+            skip_reason = "Subtitle extraction disabled"
+        
+        # Step 4: Extract subtitles if criteria met
         subtitle_results = []
         if extract_subtitles:
-            print(f"\n2. Extracting subtitles from {len(posts)} posts...")
+            print(f"\n3. Extracting subtitles from {len(posts)} posts...")
             
             for i, post in enumerate(posts, 1):
                 print(f"   Processing post {i}/{len(posts)}...")
@@ -73,14 +95,14 @@ class CreatorAnalyzer:
                         'success': False
                     })
         else:
-            print("2. Skipping subtitle extraction")
+            print(f"\n3. Skipping subtitle extraction: {skip_reason}")
         
-        # Step 3: Analyze content patterns
-        print(f"\n3. Analyzing content patterns...")
+        # Step 5: Analyze content patterns
+        print(f"\n4. Analyzing content patterns...")
         content_analysis = self._analyze_content_patterns(posts, subtitle_results)
         
-        # Step 4: Generate creator summary
-        print(f"\n4. Generating creator summary...")
+        # Step 6: Generate creator summary
+        print(f"\n5. Generating creator summary...")
         summary = self._generate_creator_summary(profile, posts, content_analysis)
         
         return {
@@ -89,8 +111,31 @@ class CreatorAnalyzer:
             'posts': posts,
             'subtitle_results': subtitle_results,
             'content_analysis': content_analysis,
-            'summary': summary
+            'summary': summary,
+            'skip_reason': skip_reason if not extract_subtitles else None
         }
+    
+    def _filter_recent_posts(self, posts, target_count):
+        """
+        Filter out pinned posts and return recent posts
+        
+        Note: TikAPI doesn't explicitly mark pinned posts, so we use timestamp-based filtering
+        to get the most recent posts (assuming pinned posts might be older but promoted)
+        """
+        # Sort posts by creation time (most recent first)
+        sorted_posts = sorted(posts, key=lambda x: x.get('create_time', 0), reverse=True)
+        
+        # For now, just return the most recent posts
+        # In the future, we could add more sophisticated pinned post detection
+        return sorted_posts[:target_count + 5]  # Get a few extra for safety
+    
+    def _calculate_average_views(self, posts):
+        """Calculate average views from a list of posts"""
+        if not posts:
+            return 0
+        
+        total_views = sum(post['stats']['views'] for post in posts)
+        return total_views // len(posts)
     
     def _analyze_content_patterns(self, posts, subtitle_results):
         """Analyze content patterns from posts and subtitles"""
@@ -236,8 +281,8 @@ if __name__ == "__main__":
     
     analyzer = CreatorAnalyzer(API_KEY)
     
-    # Test with a creator
-    result = analyzer.analyze_creator("8jelly8", post_count=3, extract_subtitles=True)
+    # Test with a creator - set low threshold to test filtering
+    result = analyzer.analyze_creator("8jelly8", post_count=3, extract_subtitles=True, min_avg_views=5000)
     
     if result['success']:
         print("\n" + "=" * 60)
@@ -261,7 +306,10 @@ if __name__ == "__main__":
         print(f"   • Description completeness: {summary['content_quality_indicators']['description_completeness']:.1f}%")
         
         subtitle_success = len([r for r in result['subtitle_results'] if r['success']])
-        print(f"   • Subtitles extracted: {subtitle_success}/{len(result['subtitle_results'])}")
+        if result.get('skip_reason'):
+            print(f"   • Subtitle extraction: Skipped ({result['skip_reason']})")
+        else:
+            print(f"   • Subtitles extracted: {subtitle_success}/{len(result['subtitle_results'])}")
         
     else:
         print(f"❌ Analysis failed: {result['error']}")

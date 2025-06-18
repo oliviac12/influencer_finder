@@ -253,14 +253,30 @@ class SimpleTikTokMCPClient:
             env = os.environ.copy()
             env["TIKNEURON_MCP_API_KEY"] = self.api_key
             
-            result = subprocess.run(
+            # Use Popen for better control over stdin/stdout
+            process = subprocess.Popen(
                 cmd,
-                input=json.dumps(request),
-                capture_output=True,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 text=True,
-                timeout=60,
                 env=env
             )
+            
+            # Send request and get response
+            stdout, stderr = process.communicate(input=json.dumps(request), timeout=60)
+            
+            # Create result object similar to subprocess.run
+            result = type('Result', (), {
+                'returncode': process.returncode,
+                'stdout': stdout,
+                'stderr': stderr
+            })()
+            
+            # Debug: print raw response for troubleshooting
+            print(f"Debug - Return code: {result.returncode}")
+            print(f"Debug - Stdout: {result.stdout[:200]}...")
+            print(f"Debug - Stderr: {result.stderr[:200]}...")
             
             if result.returncode == 0:
                 # Parse response - need to handle multiple JSON objects
