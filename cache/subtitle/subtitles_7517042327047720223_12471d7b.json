@@ -1,0 +1,7 @@
+{
+  "success": false,
+  "error": "TikTok MCP API error: No subtitles available for this video",
+  "url": "https://www.tiktok.com/@8jelly8/video/7517042327047720223",
+  "api_error": true,
+  "from_cache": false
+}

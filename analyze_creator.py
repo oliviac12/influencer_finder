@@ -2,8 +2,8 @@
 Complete Creator Analysis Workflow
 Combines TikAPI + TikTok MCP + LLM Analysis
 """
-from tikapi_client import TikAPIClient
-from tiktok_mcp_client import SimpleTikTokMCPClient
+from clients.tikapi_client import TikAPIClient
+from clients.tiktok_mcp_client import SimpleTikTokMCPClient
 import json
 
 class CreatorAnalyzer:
