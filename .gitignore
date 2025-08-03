@@ -1,13 +1,18 @@
+# Environment variables
+.env
+
 # Python
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
+*.pyc
+*.pyo
+*.pyd
 .Python
-env/
+*.so
+
+# Virtual environments
 venv/
-.env
-.venv
+env/
+ENV/
 
 # IDE
 .vscode/
@@ -19,7 +24,9 @@ venv/
 .DS_Store
 Thumbs.db
 
-# Project specific
-subtitle_cache/*.json
-test_*.py
+# Logs
 *.log
+
+# Temporary files
+*.tmp
+*.temp

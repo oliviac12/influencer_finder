@@ -1,9 +1,9 @@
 """
-Bulk Creator Performance Screening
-Screen all creators in data.csv for recent video engagement performance
+Bulk Creator Data Collection
+Screen all creators for shoppable content detection and cache data
 - Filters out photo carousel posts (focuses on video content only)
-- Requires 3+ recent video posts for analysis
-- Triple criteria: 5K+ avg views AND posted within 60 days AND has shoppable content
+- Caches creator and post data for downstream analysis
+- Primary filter: Must have shoppable content in recent posts
 """
 import pandas as pd
 import csv
@@ -16,7 +16,7 @@ from datetime import datetime
 import time
 
 class CreatorScreener:
-    def __init__(self, tikapi_key, min_avg_views=5000, max_days_since_last_post=60, brightdata_token=None):
+    def __init__(self, tikapi_key, brightdata_token=None):
         # Use hybrid client if Bright Data token provided, otherwise TikAPI only
         if brightdata_token:
             self.data_client = CreatorDataClient(tikapi_key, brightdata_token)
@@ -25,9 +25,8 @@ class CreatorScreener:
             self.data_client = TikAPIClient(tikapi_key)
             print("🔥 Using TikAPI client only")
         self.shoppable_filter = ShoppableContentFilter()
-        self.min_avg_views = min_avg_views
-        self.max_days_since_last_post = max_days_since_last_post
-        self.qualified_creators = []
+        # Note: engagement filtering removed - downstream processing handles view thresholds
+        self.processed_creators = []
         self.failed_creators = []
         
         # Data collection dataframes
@@ -38,7 +37,13 @@ class CreatorScreener:
         self.cache_dir = None
         self.creator_cache = {}
         self.shoppable_cache = {}
+        self.invalid_usernames = set()
         self.existing_creators = set()
+        
+        # CSV modification tracking
+        self.input_csv_file = None
+        self.invalid_csv_file = None
+        self.removed_usernames = []
     
     def screen_all_creators(self, csv_file="data/inputs/radar_5k_quitmyjob.csv", output_file=None):
         """Screen all creators from CSV file"""
@@ -57,9 +62,14 @@ class CreatorScreener:
         self.cache_dir = f"cache/screening/{input_basename}_cache"
         os.makedirs(self.cache_dir, exist_ok=True)
         
+        # Set up CSV modification tracking
+        self.input_csv_file = csv_file
+        self.invalid_csv_file = f"data/outputs/{input_basename}_invalid_usernames.csv"
+        
         # Reload caches for this specific dataset
         self.creator_cache = self._load_creator_cache()
         self.shoppable_cache = self._load_shoppable_cache()
+        self.invalid_usernames = self._load_invalid_usernames()
         self.existing_creators = self._load_existing_creators()
         
         # Setup dataset-specific log file
@@ -70,12 +80,17 @@ class CreatorScreener:
         # Store log file path for potential use
         self.current_log_file = log_file
         
-        print(f"🔍 Creator Performance Screening with Triple Filtering")
+        print(f"🔍 Creator Data Collection with Shoppable Content Detection")
         print(f"📁 Input: {csv_file}")
-        print(f"📁 Output: {output_file}")
+        print(f"📁 Cache: {self.cache_dir}")
         print(f"Filter 1 - Must have shoppable content in recent posts")
-        print(f"Filter 2 - Minimum average views: {self.min_avg_views:,}")
-        print(f"Filter 3 - Maximum days since last post: {self.max_days_since_last_post}")
+        print(f"Note: Engagement filtering removed - handled in downstream processing")
+        
+        # Show cache status for better run expectations
+        if len(self.existing_creators) > 0:
+            print(f"📋 Cache Status: {len(self.existing_creators)} creators already processed")
+            print(f"📋 Invalid usernames to skip: {len(self.invalid_usernames)}")
+        
         print("=" * 70)
         
         # Read creator data
@@ -97,10 +112,15 @@ class CreatorScreener:
                 print(f"   ⏭️ Skipping - already processed in previous run")
                 continue
             
+            # Skip if username is known to be invalid (timeout/error)
+            if username in self.invalid_usernames:
+                print(f"   🚫 Skipping - username previously marked as invalid")
+                continue
+            
             result = self.screen_creator(username, creator)
             
             if result['qualified']:
-                self.qualified_creators.append(result)
+                self.processed_creators.append(result)
                 shoppable_info = f", {result['shoppable_posts_found']} shoppable posts"
                 photo_filter_info = f" ({result['photo_posts_filtered']} photos filtered)" if result.get('photo_posts_filtered', 0) > 0 else ""
                 print(f"✅ QUALIFIED - Avg: {result['avg_views']:,} views, {result['days_since_last_post']} days ago{shoppable_info}{photo_filter_info}")
@@ -109,14 +129,28 @@ class CreatorScreener:
                 if result['error']:
                     print(f"❌ ERROR - {result['error']}")
                     
+                    # Check for Bright Data 3-minute timeout specifically
+                    error_msg = result['error'].lower()
+                    if 'bright data mcp timeout (3 minutes)' in error_msg:
+                        print(f"   ⏰ Bright Data 3-minute timeout detected for @{username}")
+                        print(f"   🗑️ Removing @{username} from input dataset and adding to invalid list")
+                        self._remove_username_from_input_csv(username, creator)
+                        continue  # Skip further processing for this username
+                    
+                    # Check for other invalid username errors 
+                    elif any(phrase in error_msg for phrase in ['user not found', 'user doesn\'t exist', 'invalid user', 'not available']):
+                        self.invalid_usernames.add(username)
+                        print(f"   🚫 Marking @{username} as invalid username - will skip in future runs")
+                        # Save invalid usernames immediately
+                        self._save_invalid_usernames()
+                    
                     # Check for rate limit errors and stop processing
-                    if 'rate-limit' in result['error'].lower() or 'rate limit' in result['error'].lower():
+                    if 'rate-limit' in error_msg or 'rate limit' in error_msg:
                         print(f"\n🚨 RATE LIMIT DETECTED - Stopping processing to preserve API credits")
                         print(f"📊 Processed {i}/{len(creators)} creators before hitting rate limit")
-                        print(f"✅ Found {len(self.qualified_creators)} qualified creators so far")
+                        print(f"✅ Found {len(self.processed_creators)} processed creators so far")
                         
-                        # Save current progress
-                        self.save_results(output_file)
+                        # Save current progress"
                         self.save_dataframes()
                         self._save_caches()
                         self.print_summary()
@@ -135,7 +169,6 @@ class CreatorScreener:
             time.sleep(5)
         
         # Save results
-        self.save_results(output_file)
         self.save_dataframes()
         self._save_caches()
         self.print_summary()
@@ -251,75 +284,28 @@ class CreatorScreener:
                 }
             
             posts_checked = i  # i is the last post number we checked
-            print(f"   ✅ Filter 1 PASSED: Found {len(shoppable_posts)} shoppable posts (checked {posts_checked}/{len(recent_posts)} posts)")
+            print(f"   ✅ SHOPPABLE CONTENT FOUND: {len(shoppable_posts)} posts (checked {posts_checked}/{len(recent_posts)} posts)")
+            print(f"   🎉 CREATOR PROCESSED - Data cached for downstream analysis!")
             
-            # Filter 2: Check engagement metrics
-            print(f"   📊 Filter 2: Checking engagement metrics...")
-            video_posts = [post for post in recent_posts if not post.get('is_photo_post', False)][:5]  # Only video posts for engagement calc
-            
-            # Calculate metrics using only video posts
-            if len(video_posts) < 3:
-                return {
-                    'username': username,
-                    'qualified': False,
-                    'error': None,
-                    'failure_reason': f"Insufficient video content ({len(video_posts)} videos, need 3+)",
-                    'original_data': creator_info,
-                    'recent_posts_checked': posts_checked,
-                    'shoppable_posts_found': len(shoppable_posts)
-                }
-            
-            avg_views = self._calculate_average_views(video_posts)
+            # Calculate basic metrics for cache (no filtering applied)
+            video_posts = [post for post in recent_posts if not post.get('is_photo_post', False)]
+            avg_views = self._calculate_average_views(video_posts[:5]) if video_posts else 0
             total_engagement = sum(
                 post['stats']['likes'] + post['stats']['comments'] + post['stats']['shares'] 
-                for post in video_posts
-            )
-            avg_engagement = total_engagement // len(video_posts)
+                for post in video_posts[:5]
+            ) if video_posts else 0
+            avg_engagement = total_engagement // len(video_posts[:5]) if video_posts else 0
             
-            meets_view_threshold = avg_views >= self.min_avg_views
-            if not meets_view_threshold:
-                return {
-                    'username': username,
-                    'qualified': False,
-                    'error': None,
-                    'failure_reason': f"Low views ({avg_views:,})",
-                    'original_data': creator_info,
-                    'recent_posts_checked': posts_checked,
-                    'shoppable_posts_found': len(shoppable_posts),
-                    'avg_views': avg_views
-                }
-            
-            print(f"   ✅ Filter 2 PASSED: {avg_views:,} avg views (need {self.min_avg_views:,}+)")
-            
-            # Filter 3: Check recency
-            print(f"   📅 Filter 3: Checking post recency...")
+            # Get recency data
             most_recent_post = video_posts[0] if video_posts else None
             days_since_last_post = None
-            
             if most_recent_post:
                 from datetime import datetime
                 current_time = datetime.now()
                 last_post_time = datetime.fromtimestamp(most_recent_post['create_time'])
                 days_since_last_post = (current_time - last_post_time).days
             
-            meets_recency_threshold = days_since_last_post is not None and days_since_last_post <= self.max_days_since_last_post
-            if not meets_recency_threshold:
-                return {
-                    'username': username,
-                    'qualified': False,
-                    'error': None,
-                    'failure_reason': f"Stale content ({days_since_last_post} days since last post)",
-                    'original_data': creator_info,
-                    'recent_posts_checked': posts_checked,
-                    'shoppable_posts_found': len(shoppable_posts),
-                    'avg_views': avg_views,
-                    'days_since_last_post': days_since_last_post
-                }
-            
-            print(f"   ✅ Filter 3 PASSED: Last post {days_since_last_post} days ago (need {self.max_days_since_last_post}+ days max)")
-            print(f"   🎉 ALL FILTERS PASSED - Creator qualifies!")
-            
-            # All three filters passed - creator is qualified
+            # All creators with shoppable content are processed (no qualification filtering)
             qualified = True
             failure_reason = None
             
@@ -375,50 +361,6 @@ class CreatorScreener:
         total_views = sum(post['stats']['views'] for post in posts)
         return total_views // len(posts)
     
-    def save_results(self, output_file):
-        """Save qualified creators to CSV"""
-        if not self.qualified_creators:
-            print(f"\n⚠️  No qualified creators found!")
-            return
-        
-        # Prepare data for CSV
-        csv_data = []
-        for creator in self.qualified_creators:
-            # Flatten recent posts data
-            row = {
-                'username': creator['username'],
-                'nickname': creator['nickname'],
-                'followers': creator['followers'],
-                'avg_views': creator['avg_views'],
-                'avg_engagement': creator['avg_engagement'],
-                'video_posts_analyzed': creator['total_posts_analyzed'],
-                'photo_posts_filtered': creator.get('photo_posts_filtered', 0),
-                'recent_posts_checked': creator.get('recent_posts_checked', 0),
-                'shoppable_posts_found': creator.get('shoppable_posts_found', 0),
-                'days_since_last_post': creator.get('days_since_last_post', 'N/A'),
-                'original_email': creator['original_data'].get('email', ''),
-                'original_bio_link': creator['original_data'].get('bio_link', ''),
-                'original_region': creator['original_data'].get('region', ''),
-            }
-            
-            # Add recent post details (up to 5 video posts only)
-            for i, post in enumerate(creator['recent_posts'][:5], 1):
-                row[f'post{i}_views'] = post['views']
-                row[f'post{i}_likes'] = post['likes']
-                row[f'post{i}_description'] = post['description']
-                row[f'post{i}_url'] = post['tiktok_url']
-                row[f'post{i}_date'] = post['date']
-                row[f'post{i}_content_type'] = post.get('content_type', 'video')
-            
-            csv_data.append(row)
-        
-        # Save to CSV
-        try:
-            df = pd.DataFrame(csv_data)
-            df.to_csv(output_file, index=False)
-            print(f"\n💾 Saved {len(csv_data)} qualified creators to {output_file}")
-        except Exception as e:
-            print(f"\n❌ Error saving to {output_file}: {e}")
     
     def save_dataframes(self):
         """Save creator_lookup and creator_post_lookup dataframes (cumulative across runs)"""
@@ -475,7 +417,7 @@ class CreatorScreener:
         return {}
     
     def _save_caches(self):
-        """Save both caches"""
+        """Save all caches"""
         try:
             # Save creator cache
             with open(os.path.join(self.cache_dir, "creator_cache.json"), 'w') as f:
@@ -484,69 +426,188 @@ class CreatorScreener:
             # Save shoppable cache
             with open(os.path.join(self.cache_dir, "shoppable_cache.json"), 'w') as f:
                 json.dump(self.shoppable_cache, f, indent=2)
+            
+            # Save invalid usernames cache
+            self._save_invalid_usernames()
                 
-            print(f"💾 Saved caches: {len(self.creator_cache)} creators, {len(self.shoppable_cache)} posts")
+            print(f"💾 Saved caches: {len(self.creator_cache)} creators, {len(self.shoppable_cache)} posts, {len(self.invalid_usernames)} invalid")
         except Exception as e:
             print(f"❌ Error saving caches: {e}")
     
-    def _load_existing_creators(self):
-        """Load existing creators from creator_lookup.csv to avoid reprocessing"""
-        existing_creators = set()
-        if os.path.exists('creator_lookup.csv'):
+    def _load_invalid_usernames(self):
+        """Load invalid usernames cache"""
+        cache_file = os.path.join(self.cache_dir, "invalid_usernames.json")
+        if os.path.exists(cache_file):
             try:
-                df = pd.read_csv('creator_lookup.csv')
-                existing_creators = set(df['username'].tolist())
-                print(f"📋 Found {len(existing_creators)} existing creators to skip")
+                with open(cache_file, 'r') as f:
+                    data = json.load(f)
+                invalid_set = set(data)
+                if invalid_set:
+                    print(f"🚫 Found {len(invalid_set)} invalid usernames to skip")
+                return invalid_set
             except Exception as e:
-                print(f"Warning: Could not load existing creators: {e}")
+                print(f"Warning: Could not load invalid usernames cache: {e}")
+        return set()
+    
+    def _save_invalid_usernames(self):
+        """Save invalid usernames cache"""
+        try:
+            cache_file = os.path.join(self.cache_dir, "invalid_usernames.json")
+            with open(cache_file, 'w') as f:
+                json.dump(list(self.invalid_usernames), f, indent=2)
+        except Exception as e:
+            print(f"❌ Error saving invalid usernames cache: {e}")
+    
+    def _remove_username_from_input_csv(self, username, creator_data):
+        """Remove username from input CSV and add to invalid CSV"""
+        try:
+            # Read current input CSV
+            df = pd.read_csv(self.input_csv_file)
+            
+            # Add to invalid CSV first (before removing from input)
+            invalid_data = creator_data.copy()
+            invalid_data['removal_reason'] = 'Bright Data MCP timeout (3 minutes)'
+            invalid_data['removal_timestamp'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            
+            # Create or append to invalid CSV
+            if os.path.exists(self.invalid_csv_file):
+                invalid_df = pd.read_csv(self.invalid_csv_file)
+                invalid_df = pd.concat([invalid_df, pd.DataFrame([invalid_data])], ignore_index=True)
+            else:
+                invalid_df = pd.DataFrame([invalid_data])
+            
+            invalid_df.to_csv(self.invalid_csv_file, index=False)
+            
+            # Remove from input CSV
+            df_filtered = df[df['username'] != username]
+            
+            # Only update the input CSV if we actually removed something
+            if len(df_filtered) < len(df):
+                df_filtered.to_csv(self.input_csv_file, index=False)
+                self.removed_usernames.append(username)
+                print(f"   ✅ Removed @{username} from {self.input_csv_file}")
+                print(f"   📄 Added @{username} to {self.invalid_csv_file}")
+                print(f"   📊 Input dataset now has {len(df_filtered)} creators (was {len(df)})")
+            else:
+                print(f"   ⚠️ Username @{username} not found in input CSV for removal")
+                
+        except Exception as e:
+            print(f"   ❌ Error removing username from CSV: {e}")
+    
+    def _load_existing_creators(self):
+        """Load existing creators from creator_cache.json to avoid reprocessing"""
+        existing_creators = set()
+        if self.cache_dir and os.path.exists(os.path.join(self.cache_dir, "creator_cache.json")):
+            try:
+                with open(os.path.join(self.cache_dir, "creator_cache.json"), 'r') as f:
+                    cache_data = json.load(f)
+                existing_creators = set(cache_data.keys())
+                print(f"📋 Found {len(existing_creators)} existing creators to skip from cache")
+            except Exception as e:
+                print(f"Warning: Could not load existing creators from cache: {e}")
         return existing_creators
     
     def print_summary(self):
         """Print screening summary"""
-        total = len(self.qualified_creators) + len(self.failed_creators)
+        total = len(self.processed_creators) + len(self.failed_creators)
         
         print(f"\n{'='*60}")
-        print(f"📊 SCREENING SUMMARY")
+        print(f"📊 DATA COLLECTION SUMMARY")
         print(f"{'='*60}")
-        failed_no_error = [c for c in self.failed_creators if not c['error']]
-        low_views = [c for c in failed_no_error if 'Low views' in c.get('failure_reason', '')]
-        stale_content = [c for c in failed_no_error if 'Stale content' in c.get('failure_reason', '')]
-        both_issues = [c for c in failed_no_error if 'AND' in c.get('failure_reason', '')]
         
         print(f"Total creators screened: {total}")
-        print(f"✅ Qualified creators: {len(self.qualified_creators)}")
-        print(f"❌ Low views only: {len(low_views)}")
-        print(f"⏰ Stale content only: {len(stale_content)}")
-        print(f"💥 Both low views & stale: {len(both_issues)}")
-        print(f"🔥 API errors: {len([c for c in self.failed_creators if c['error']])}")
+        print(f"✅ Processed creators (with shoppable content): {len(self.processed_creators)}")
+        print(f"❌ No shoppable content: {len([c for c in self.failed_creators if 'No shoppable content' in c.get('failure_reason', '')])}")
+        print(f"🔥 API errors: {len([c for c in self.failed_creators if c.get('error')])}")
         
-        if self.qualified_creators:
-            print(f"\n🎯 QUALIFIED CREATORS:")
-            for creator in sorted(self.qualified_creators, key=lambda x: x['avg_views'], reverse=True):
-                print(f"   • @{creator['username']} - {creator['avg_views']:,} avg views ({creator['followers']:,} followers)")
+        # Report CSV modifications
+        if self.removed_usernames:
+            print(f"🗑️ Removed invalid usernames: {len(self.removed_usernames)}")
+            print(f"   📄 Invalid usernames saved to: {self.invalid_csv_file}")
+            for username in self.removed_usernames:
+                print(f"   • @{username} (Bright Data timeout)")
+        else:
+            print(f"🗑️ No usernames removed from input dataset")
         
-        if self.failed_creators:
-            failed_no_error = [c for c in self.failed_creators if not c['error']]
-            if failed_no_error:
-                print(f"\n📉 FAILED CREATORS:")
-                for creator in sorted(failed_no_error, key=lambda x: x.get('avg_views', 0), reverse=True):
-                    reason = creator.get('failure_reason', 'Unknown reason')
-                    print(f"   • @{creator['username']} - {reason}")
+        if self.processed_creators:
+            print(f"\n🎯 PROCESSED CREATORS:")
+            print(f"📊 Use helper functions to generate creator_lookup.csv and creator_post_lookup.csv")
+            print(f"💡 Downstream processing will handle engagement/recency filtering")
 
+
+def run_screening(input_csv_file, verbose=True):
+    """
+    Main screening runner with enhanced logging and error handling
+    
+    Args:
+        input_csv_file: Path to input CSV file
+        verbose: Enable verbose startup logging
+    """
+    import sys
+    import traceback
+    
+    if verbose:
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        print(f"🚀 Starting Creator Screening Process")
+        print(f"⏰ Timestamp: {timestamp}")
+        print(f"📂 Input file: {input_csv_file}")
+        print(f"📍 Working directory: {os.getcwd()}")
+        print("=" * 70)
+        sys.stdout.flush()
+    
+    try:
+        # API Keys (should be moved to environment variables in production)
+        TIKAPI_KEY = "iLLGx2LbZskKRHGcZF7lcilNoL6BPNGeJM1p0CFgoVaD2Nnx"
+        BRIGHTDATA_TOKEN = "36c74962-d03a-41c1-b261-7ea4109ec8bd"
+        
+        if verbose:
+            print("🔧 Initializing Creator Screener...")
+            sys.stdout.flush()
+        
+        # Initialize screener with hybrid client (TikAPI + Bright Data fallback)
+        screener = CreatorScreener(
+            TIKAPI_KEY, 
+            brightdata_token=BRIGHTDATA_TOKEN
+        )
+        
+        if verbose:
+            print("✅ Screener initialized successfully")
+            print("🎯 Starting screening process...")
+            sys.stdout.flush()
+        
+        # Check if input file exists
+        if not os.path.exists(input_csv_file):
+            print(f"❌ Input file not found: {input_csv_file}")
+            return False
+        
+        # Run screening
+        screener.screen_all_creators(input_csv_file)
+        
+        if verbose:
+            print("\n🎉 Screening process completed successfully!")
+        
+        return True
+        
+    except Exception as e:
+        print(f"\n❌ SCREENING FAILED - Error occurred: {str(e)}")
+        print("📋 Full traceback:")
+        traceback.print_exc()
+        return False
 
 if __name__ == "__main__":
-    TIKAPI_KEY = "iLLGx2LbZskKRHGcZF7lcilNoL6BPNGeJM1p0CFgoVaD2Nnx"
-    BRIGHTDATA_TOKEN = "36c74962-d03a-41c1-b261-7ea4109ec8bd"
+    import sys
     
-    # Initialize screener with hybrid client (TikAPI + Bright Data fallback)
-    screener = CreatorScreener(
-        TIKAPI_KEY, 
-        min_avg_views=5000, 
-        max_days_since_last_post=60,
-        brightdata_token=BRIGHTDATA_TOKEN
-    )
+    # Default to radar dataset if no argument provided
+    if len(sys.argv) > 1:
+        input_file = sys.argv[1]
+    else:
+        input_file = "data/inputs/radar_5k_quitmyjob.csv"
     
-    # Screen all creators
-    screener.screen_all_creators("radar_1k_10K_fashion_affiliate_5%_eng_rate.csv", "qualified_creators.csv")
+    success = run_screening(input_file, verbose=True)
     
-    print(f"\n🚀 Screening complete! Check 'qualified_creators.csv' for results.")
+    if success:
+        print(f"\n✅ Check the data/outputs/ folder for results!")
+        sys.exit(0)
+    else:
+        print(f"\n💥 Screening failed - check logs above for details")
+        sys.exit(1)

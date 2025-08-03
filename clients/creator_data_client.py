@@ -1,12 +1,19 @@
 """
 Hybrid Creator Data Client - TikAPI + Bright Data MCP Fallback
 Provides unified interface for fetching creator data with automatic fallback
+Now saves content data (captions, hashtags) to creators_content_database.json
 """
 import subprocess
 import json
 import time
+import sys
+import os
 from datetime import datetime
 from .tikapi_client import TikAPIClient
+
+# Add utils to path for content database
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from utils.content_database import ContentDatabase
 
 
 class CreatorDataClient:
@@ -14,6 +21,7 @@ class CreatorDataClient:
         self.tikapi = TikAPIClient(tikapi_key)
         self.brightdata_token = brightdata_token
         self.prefer_brightdata = prefer_brightdata
+        self.content_db = ContentDatabase()
     
     def get_creator_analysis(self, username, post_count=35):
         """
@@ -35,14 +43,9 @@ class CreatorDataClient:
                 print(f"   ✅ Bright Data MCP success - got profile and {len(brightdata_result['posts'])} posts")
                 return brightdata_result
             else:
-                # Check for specific errors that warrant fallback
-                error_msg = brightdata_result.get('error', '').lower()
-                if any(keyword in error_msg for keyword in ['building snapshot', 'timeout', 'failed']):
-                    print(f"   🔄 Bright Data failed ({brightdata_result['error']}), falling back to TikAPI...")
-                    return self._try_tikapi_fallback(username, post_count)
-                else:
-                    print(f"   ❌ Bright Data MCP failed: {brightdata_result['error']}")
-                    return brightdata_result
+                # Always fall back to TikAPI when Bright Data MCP fails, regardless of error type
+                print(f"   🔄 Bright Data failed ({brightdata_result['error']}), falling back to TikAPI...")
+                return self._try_tikapi_fallback(username, post_count)
         else:
             # TikAPI first, then Bright Data fallback
             print(f"   🔥 Trying TikAPI for @{username}...")
@@ -149,6 +152,14 @@ class CreatorDataClient:
                     'success': False,
                     'error': "Could not parse Bright Data MCP response"
                 }
+            
+            # Save content data to database (NEW)
+            top_posts_data = profile_data.get('top_posts_data', [])
+            if top_posts_data:
+                try:
+                    self.content_db.save_creator_content(username, profile_data, top_posts_data)
+                except Exception as e:
+                    print(f"   ⚠️  Warning: Failed to save content data for @{username}: {e}")
             
             # Convert to TikAPI-compatible format
             profile = {

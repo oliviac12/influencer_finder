@@ -6,33 +6,47 @@ An agentic workflow to identify TikTok creators that match specific brand vibes,
 
 This project addresses the challenge of scaling influencer discovery and outreach. Currently, reaching out to 300+ creators monthly to achieve 30 collaborations involves extensive manual content review. This tool automates creator analysis using a hybrid TikAPI + Bright Data MCP approach with LLM-powered content evaluation.
 
-## ✅ Current Status (Updated 2025-01-27)
+## ✅ Current Status (Updated 2025-08-02)
+
+**🆕 New Feature: Content Database System**
+- **Content Extraction**: Automatically extracts captions, hashtags, and metadata from Bright Data's `top_posts_data`
+- **Searchable Database**: Builds `creators_content_database.json` with ~37 posts per creator for flexible querying
+- **Campaign Flexibility**: Find creators by keywords, hashtags, or themes on-demand instead of pre-computed categories
+- **Background Processing**: Full backfill system to extract content from all existing creator lists
 
 **Phase 1: Core Infrastructure Complete ✅**
-- ✅ **Hybrid API Client Architecture**: Built robust TikAPI + Bright Data MCP fallback system
-- ✅ **Automatic Failover**: When Bright Data hits "building snapshot" errors, automatically falls back to TikAPI
+- ✅ **Hybrid API Client Architecture**: Built robust TikAPI + Bright Data MCP fallback system  
+- ✅ **Universal Automatic Failover**: When Bright Data fails for ANY reason, automatically falls back to TikAPI
 - ✅ **Cost Optimization**: Bright Data MCP (free) as primary, TikAPI ($25/month) as backup
 - ✅ **Triple Filtering System**: Engagement (5K+ avg views) + Recency (60 days) + Shoppable content detection
 - ✅ **Intelligent Caching**: Preserves API credits with comprehensive cache management
-- ✅ **Large-Scale Processing**: Successfully processing 351-creator dataset (radar_1k_10K_fashion_affiliate_5%_eng_rate.csv)
+- ✅ **Large-Scale Processing**: Successfully processing 970+ creator dataset across 3 CSV files
 - ✅ **Clean Project Organization**: Modular directory structure with proper separation of concerns
 
-**Phase 2: File Organization & Code Quality ✅**
+**Phase 2: Content Database System ✅**
+- ✅ **Content Data Extraction**: Extract 40+ fields from Bright Data including captions and hashtags
+- ✅ **Searchable Content Database**: JSON database with full creator content for flexible campaign matching
+- ✅ **Automatic Content Saving**: All future screening runs automatically save content data
+- ✅ **Background Backfill System**: Extract content from all existing creator lists (~970 creators)
+- ✅ **Two-Stage Workflow**: Content analysis (cheap) → Video analysis (expensive) for qualified creators only
+
+**Phase 3: File Organization & Code Quality ✅**
 - ✅ **Organized Directory Structure**: 
   - `clients/` - API clients (TikAPI, Bright Data MCP, TikTok MCP)
-  - `utils/` - Utility modules (shoppable content filtering)
+  - `utils/` - Utility modules (content database, shoppable filtering)
   - `helpers/` - One-time rebuild scripts
   - `data/` - All CSV files with clear input/output separation
-  - `cache/` - Consolidated cache management (screening + subtitle)
+  - `cache/` - Consolidated cache management (screening + subtitle + content)
   - `logs/` - Centralized logging
-- ✅ **Cleaned Up Dead Code**: Removed obsolete files (rapidapi_tiktok_client, brightdata_mcp_client, old logs)
+- ✅ **Cleaned Up Dead Code**: Removed experimental client versions and test files
 - ✅ **Updated Import Structure**: All imports reflect new modular organization
 
-**Current Phase: UI Development Planning 🚧**
-- 🎯 **Streamlit Web Interface**: Build user-friendly frontend for CSV upload and job management
-- 🎯 **Background Job Processing**: Long-running creator screening in background
-- 🎯 **Email Notifications**: Automatic email alerts when processing completes
-- 🎯 **Replit Deployment**: Always-on processing using Replit Paid account
+**Current Phase: AI-Powered Creator Review Interface ✅**
+- ✅ **Streamlit Creator Review App**: Visual interface for AI-powered creator analysis and approval
+- ✅ **Claude API Integration**: Automated creator analysis with customizable campaign briefs  
+- ✅ **Approval Workflow**: One-click approve/reject/maybe with decision tracking
+- ✅ **Export Functionality**: Download approved creator lists as CSV
+- 🎯 **Enhanced Search Tools**: Build advanced query interface for content themes
 
 ## 🚀 Quick Start
 
@@ -41,24 +55,54 @@ This project addresses the challenge of scaling influencer discovery and outreac
 pip install tikapi
 ```
 
-### Usage
-```python
-from tikapi import TikAPI
+### Main Workflows
 
-# Initialize API
-api = TikAPI("your-api-key")
-
-# Get creator profile and recent posts
-profile = api.public.check(username="creator_username")
-posts = api.public.posts(secUid=profile_sec_uid)
-```
-
-### Test the Implementation
+**Creator Screening + Content Extraction:**
 ```bash
-python test_tikapi_final.py
+# Screen creators and automatically save content data
+python screen_creators.py
 ```
 
-This will fetch recent posts from @27travels as a demonstration.
+**Content Database Backfill:**
+```bash
+# Extract content from all existing CSV files
+python run_full_backfill.py
+```
+
+**Content Database Search:**
+```python
+from utils.content_database import ContentDatabase
+
+db = ContentDatabase()
+
+# Find creators by hashtag
+fashion_creators = db.search_creators_by_hashtag("fashion")
+
+# Find creators by keyword
+travel_creators = db.search_creators_by_keyword("travel")
+
+# Get specific creator content
+creator_data = db.get_creator_content("username")
+```
+
+**Creator Review Interface:**
+```bash
+# Install Streamlit dependencies
+pip install streamlit anthropic
+
+# Launch creator review app
+python run_review_app.py
+# OR manually: streamlit run creator_review_app.py
+```
+
+**Monitor Background Jobs:**
+```bash
+# Check backfill progress
+tail -f logs/content_backfill_*.log
+
+# Check database stats
+python -c "from utils.content_database import ContentDatabase; print(ContentDatabase().get_stats())"
+```
 
 ## 🏗️ Architecture
 
@@ -67,25 +111,45 @@ This will fetch recent posts from @27travels as a demonstration.
 influencer_finder/
 ├── README.md & CLAUDE.md           # Documentation
 ├── screen_creators.py              # Main screening entry point  
-├── analyze_creator.py              # Analysis entry point
+├── creator_review_app.py           # Streamlit AI-powered review interface
+├── run_review_app.py               # Launch script for Streamlit app
+├── run_full_backfill.py           # Content database backfill
+├── backfill_content_data.py        # Content extraction engine
 ├── clients/                        # API clients
 │   ├── tikapi_client.py           # TikAPI integration
 │   ├── creator_data_client.py     # Hybrid TikAPI + Bright Data client  
 │   └── tiktok_mcp_client.py       # TikTok MCP for subtitles
 ├── utils/                          # Utility modules
+│   ├── content_database.py        # Content database manager
 │   └── filter_shoppable.py        # Shoppable content detection
 ├── helpers/                        # One-time scripts
 ├── data/                           # All CSV files + documentation
 ├── cache/                          # Intelligent caching system
+│   ├── creators_content_database.json # Searchable content database
+│   ├── screening/                  # Creator screening cache
+│   └── subtitle/                   # Subtitle extraction cache
 └── logs/                           # Processing logs
 ```
 
 **Current Data Flow:**
 ```
-data/radar_1k_10K_fashion_affiliate_5%_eng_rate.csv → 
-screen_creators.py (Hybrid API + Triple filtering) → 
-data/qualified_creators.csv → 
-[Future: Streamlit UI for job management]
+Input: data/inputs/*.csv (970+ creators)
+    ↓
+screen_creators.py (Hybrid API + Triple filtering + Content extraction)
+    ↓                                    ↓
+data/outputs/qualified_creators.csv   cache/creators_content_database.json
+    ↓                                    ↓
+Video Analysis (28 posts)            Content Search (by campaign)
+    ↓                                    ↓
+Final Creator Rankings               Campaign-Specific Creator Lists
+```
+
+**Content Database Workflow:**
+```
+backfill_content_data.py → Extract 37 posts per creator → 
+Content Database (captions + hashtags) → 
+On-demand search: "Find fashion creators" → 
+Qualified creators for video analysis
 ```
 
 **Hybrid API Architecture:**
