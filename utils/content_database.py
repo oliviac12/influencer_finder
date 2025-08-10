@@ -4,6 +4,7 @@ Handles saving and loading creator content data (captions, hashtags, etc.)
 """
 import json
 import os
+import re
 from datetime import datetime
 from typing import Dict, List, Optional
 
@@ -55,12 +56,17 @@ class ContentDatabase:
         """
         db = self.load_database()
         
+        # Extract email from bio
+        bio_text = profile_data.get("biography", "") or ""
+        email = self._extract_email_from_bio(bio_text)
+        
         # Prepare creator data
         creator_content = {
             "profile": {
                 "followers": profile_data.get("followers", 0),
                 "nickname": profile_data.get("nickname", ""),
-                "bio": profile_data.get("biography", ""),
+                "bio": bio_text,
+                "email": email,  # Will be empty string if not found
                 "verified": profile_data.get("is_verified", False),
                 "language": profile_data.get("predicted_lang", ""),
                 "is_commerce": profile_data.get("is_commerce_user", False),
@@ -137,6 +143,36 @@ class ContentDatabase:
                     break
         
         return matching_creators
+    
+    def _extract_email_from_bio(self, bio_text: str) -> str:
+        """
+        Extract email address from bio text
+        
+        Args:
+            bio_text: The creator's bio text
+            
+        Returns:
+            Email address if found, empty string otherwise
+        """
+        if not bio_text:
+            return ""
+        
+        # Common email regex pattern
+        email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+        
+        # Search for email in bio
+        matches = re.findall(email_pattern, bio_text)
+        
+        if matches:
+            # Return the first valid email found
+            # Filter out common false positives
+            for email in matches:
+                # Skip if it's just an @ mention
+                if not any(char.isdigit() for char in email.split('@')[0]):
+                    return email.lower()
+            return matches[0].lower() if matches else ""
+        
+        return ""
 
 
 # Test the database functionality

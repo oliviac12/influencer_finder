@@ -16,9 +16,9 @@ pip install tikapi pandas
 
 **Main Entry Points:**
 - `python screen_creators.py` - Bulk creator screening system (main workflow)
-- `python analyze_creator.py` - Individual creator analysis with full workflow
-- `python tikapi_client.py` - Test TikAPI client functionality
-- `python tiktok_mcp_client.py` - Test TikTok MCP integration
+- `python app/run_review_app.py` - Launch AI-powered creator review interface
+- `python backfill/run_full_backfill.py` - Extract content from all creators
+- `python backfill/backfill_retry_missing.py` - Retry failed creators
 
 **No package.json, requirements.txt, or testing framework** is present - this is a Python script-based project with manual dependency installation.
 
@@ -55,11 +55,11 @@ Rank and return top 20
 - Two implementations: full MCP client and simplified direct calls
 - API key management and credit conservation
 
-**4. Complete Analysis Workflow (`analyze_creator.py`)**
-- Orchestrates TikAPI + MCP + LLM analysis
-- Content pattern analysis (hashtags, themes, engagement)
-- Creator classification and summary generation
-- Configurable thresholds for subtitle extraction
+**4. AI-Powered Review Interface (`app/creator_review_app.py`)**
+- Streamlit web interface for batch creator analysis
+- Claude API integration for intelligent content evaluation
+- AI analysis caching to save API costs
+- Export approved creators with extracted emails
 
 ### Data Flow
 1. **Input**: CSV file with creator usernames and metadata
@@ -86,12 +86,12 @@ Rank and return top 20
 
 ```
 ├── screen_creators.py          # Main bulk screening entry point
-├── analyze_creator.py          # Individual creator analysis
-├── tikapi_client.py           # TikAPI interface
-├── tiktok_mcp_client.py       # MCP subtitle extraction
-├── data.csv                   # Creator database (10 sample creators)
-├── qualified_creators.csv     # Screening output
-└── subtitle_cache/            # Cached subtitle files
+├── app/                        # Streamlit web interface
+├── backfill/                   # Content extraction scripts
+├── clients/                    # API integrations
+├── utils/                      # Core utilities
+├── tools/                      # Helper scripts
+└── cache/                      # All cached data
 ```
 
 ## Development Notes
@@ -110,14 +110,14 @@ python screen_creators.py
 # Processes data.csv → qualified_creators.csv
 ```
 
-**Analyze single creator:**
+**Review creators with AI:**
 ```bash
-python analyze_creator.py
-# Modify username in file for different creators
+python app/run_review_app.py
+# Opens Streamlit interface for batch analysis
 ```
 
-**Test individual components:**
+**Check creator emails:**
 ```bash
-python tikapi_client.py        # Test TikAPI functionality
-python tiktok_mcp_client.py    # Test MCP integration
+python tools/check_creator_emails.py
+# Shows email extraction statistics
 ```

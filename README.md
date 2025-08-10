@@ -44,9 +44,11 @@ This project addresses the challenge of scaling influencer discovery and outreac
 **Current Phase: AI-Powered Creator Review Interface ✅**
 - ✅ **Streamlit Creator Review App**: Visual interface for AI-powered creator analysis and approval
 - ✅ **Claude API Integration**: Automated creator analysis with customizable campaign briefs  
+- ✅ **AI Analysis Caching**: 7-day cache to avoid redundant API calls and save costs
+- ✅ **Email Extraction**: Automatically extracts creator emails from bios (85.2% success rate)
 - ✅ **Approval Workflow**: One-click approve/reject/maybe with decision tracking
 - ✅ **Export Functionality**: Download approved creator lists as CSV
-- 🎯 **Enhanced Search Tools**: Build advanced query interface for content themes
+- 🎯 **Email Outreach System**: Design and implement automated outreach for approved creators
 
 ## 🚀 Quick Start
 
@@ -91,8 +93,8 @@ creator_data = db.get_creator_content("username")
 pip install streamlit anthropic
 
 # Launch creator review app
-python run_review_app.py
-# OR manually: streamlit run creator_review_app.py
+python app/run_review_app.py
+# OR manually: streamlit run app/creator_review_app.py
 ```
 
 **Monitor Background Jobs:**
@@ -111,10 +113,11 @@ python -c "from utils.content_database import ContentDatabase; print(ContentData
 influencer_finder/
 ├── README.md & CLAUDE.md           # Documentation
 ├── screen_creators.py              # Main screening entry point  
-├── creator_review_app.py           # Streamlit AI-powered review interface
-├── run_review_app.py               # Launch script for Streamlit app
 ├── run_full_backfill.py           # Content database backfill
 ├── backfill_content_data.py        # Content extraction engine
+├── app/                            # Streamlit web interface
+│   ├── creator_review_app.py      # AI-powered review interface
+│   └── run_review_app.py          # Launch script
 ├── clients/                        # API clients
 │   ├── tikapi_client.py           # TikAPI integration
 │   ├── creator_data_client.py     # Hybrid TikAPI + Bright Data client  
@@ -180,19 +183,27 @@ TikAPI Fallback ($25/month) → Success ✅
 - [x] **Project Organization**: Clean modular structure with proper separation of concerns
 - [x] **TikTok MCP Integration**: Subtitle extraction for detailed content analysis
 
-### Phase 3: Web Interface & User Experience 🎯 NEXT
-- [ ] **Streamlit Application**: Build web UI for CSV upload and job management
-  - [ ] Drag-and-drop CSV upload interface
-  - [ ] Configurable filtering thresholds (views, days, etc.)
-  - [ ] Real-time progress tracking with job status
-  - [ ] Download processed results
-- [ ] **Background Job Processing**: Long-running tasks without blocking UI
-- [ ] **Email Notifications**: SMTP integration for job completion alerts
-  - [ ] Success/failure notifications with summary stats
-  - [ ] Download links for completed results
-  - [ ] Error details for failed jobs
-- [ ] **Replit Deployment**: Always-on processing using Replit Paid account
-- [ ] **Job History**: Track previous processing runs and results
+### Phase 3: Web Interface & User Experience ✅ MOSTLY COMPLETE
+- [x] **Streamlit Application**: AI-powered creator review interface
+  - [x] Batch AI analysis with Claude Sonnet 4
+  - [x] Two modes: analyze custom list vs entire database
+  - [x] Concise Q&A format with embedded TikTok links
+  - [x] AI analysis caching (7-day expiry) to save costs
+- [x] **Email Extraction**: Auto-extract from bios (85.2% success)
+- [x] **Export Functionality**: Download approved creators as CSV
+
+### Phase 4: Email Outreach System 🎯 NEXT
+- [ ] **Email Outreach Interface**: For approved creators
+  - [ ] Display creators with emails vs those needing manual entry
+  - [ ] Draft personalized outreach messages using AI
+  - [ ] Bulk email sending with tracking
+  - [ ] Template management for different campaign types
+- [ ] **Retry Missing Creators**: Run `backfill_retry_missing.py` after main job completes
+  - [ ] Process ~100 creators that failed during initial backfill
+  - [ ] Handle "Building snapshot" errors with proper delays
+- [ ] **Enhanced Search Tools**: Build query interface for content database
+  - [ ] Search by hashtags, keywords, themes
+  - [ ] Filter by engagement, follower count, etc.
 
 ### Future Screening Improvements
 - [ ] **Database Integration**: Replace CSV-based data storage with SQLite/PostgreSQL database
@@ -208,16 +219,12 @@ TikAPI Fallback ($25/month) → Success ✅
 - [ ] **Category-Specific Filtering**: Different thresholds for travel vs lifestyle vs food creators
 - [ ] **Seasonal Adjustments**: Account for posting patterns during holidays/travel seasons
 
-### Phase 2: Agentic Outreach
-- [ ] Automatically draft personalized outreach
-- [ ] Integration with email systems
-- [ ] Track open/response rates
-
-### Phase 3: Agentic Response & Management
-- [ ] Parse creator responses
+### Phase 5: Agentic Response & Management
+- [ ] Parse creator responses from email
 - [ ] Negotiate terms within parameters
 - [ ] Schedule content deliverables
 - [ ] Track campaign progress
+- [ ] Integration with project management tools
 
 ## 🛠️ Technical Implementation
 
@@ -244,8 +251,8 @@ TikAPI Fallback ($25/month) → Success ✅
 # Main workflow: Process 351 creators with triple filtering
 python screen_creators.py
 
-# Individual creator analysis (for testing)
-python analyze_creator.py
+# Individual creator analysis
+python tools/check_creator_emails.py
 
 # Monitor progress
 tail -f logs/screening_progress.log
@@ -257,7 +264,6 @@ tail -f logs/screening_progress.log
 - **`clients/tikapi_client.py`** - Pure TikAPI implementation (fallback)
 - **`clients/tiktok_mcp_client.py`** - TikTok MCP for subtitle extraction
 - **`utils/filter_shoppable.py`** - Shoppable content detection
-- **`analyze_creator.py`** - Complete workflow for individual creator analysis
 - **`data/radar_1k_10K_fashion_affiliate_5%_eng_rate.csv`** - Main 351-creator dataset
 - **`data/qualified_creators.csv`** - Screening results output
 - **`cache/`** - Intelligent caching for API credit conservation
@@ -275,7 +281,7 @@ tail -f logs/screening_progress.log
 
 ### Contributing
 1. Use modular components for testing new functionality
-2. Expand content analysis capabilities in `analyze_creator.py`
+2. Expand content analysis capabilities in the Streamlit app
 3. Add new filtering criteria in `screen_creators.py`
 
 ## 📈 Long-term Vision

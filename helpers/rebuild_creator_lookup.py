@@ -6,10 +6,10 @@ import json
 import pandas as pd
 import os
 
-def rebuild_creator_lookup():
-    """Rebuild creator_lookup.csv from screening_cache/creator_cache.json"""
+def rebuild_creator_lookup(dataset_name="radar_5k_quitmyjob"):
+    """Rebuild creator_lookup.csv from dataset-specific creator cache"""
     
-    cache_file = "../cache/screening/creator_cache.json"
+    cache_file = f"cache/screening/{dataset_name}_cache/creator_cache.json"
     
     if not os.path.exists(cache_file):
         print("❌ No creator cache found!")
@@ -40,11 +40,13 @@ def rebuild_creator_lookup():
         print("❌ No valid creator data found in cache!")
         return
     
-    # Save to CSV
+    # Save to CSV with dataset-specific name
+    output_file = f'data/outputs/{dataset_name}_creator_lookup.csv'
+    os.makedirs('data/outputs', exist_ok=True)
     df = pd.DataFrame(creator_data)
-    df.to_csv('creator_lookup.csv', index=False)
+    df.to_csv(output_file, index=False)
     
-    print(f"✅ Rebuilt creator_lookup.csv with {len(creator_data)} creators:")
+    print(f"✅ Rebuilt {output_file} with {len(creator_data)} creators:")
     for creator in creator_data:
         print(f"   • @{creator['username']} - {creator['follower_count']:,} followers")
 
