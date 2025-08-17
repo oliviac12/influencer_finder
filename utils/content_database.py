@@ -105,6 +105,16 @@ class ContentDatabase:
         db = self.load_database()
         return db["creators"].get(username)
     
+    def update_creator_profile(self, username: str, profile_data: Dict):
+        """Update profile data for an existing creator"""
+        db = self.load_database()
+        if username in db["creators"]:
+            db["creators"][username]["profile"] = profile_data
+            db["metadata"]["last_updated"] = datetime.now().isoformat()
+            self.save_database(db)
+            return True
+        return False
+    
     def creator_exists(self, username: str) -> bool:
         """Check if creator already has content data"""
         db = self.load_database()

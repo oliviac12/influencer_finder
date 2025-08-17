@@ -42,25 +42,25 @@ class AIAnalysisCache:
         with open(self.cache_path, 'w') as f:
             json.dump(cache_data, f, indent=2)
     
-    def get_cache_key(self, username: str, campaign_brief: str) -> str:
+    def get_cache_key(self, username: str, campaign_name: str) -> str:
         """Generate a unique cache key for username + campaign combination"""
-        # Create hash of campaign brief to handle long briefs
-        brief_hash = hashlib.md5(campaign_brief.encode()).hexdigest()[:8]
-        return f"{username}_{brief_hash}"
+        # Use campaign name directly (sanitized)
+        campaign_key = campaign_name.lower().replace(' ', '_')
+        return f"{username}_{campaign_key}"
     
-    def get_cached_analysis(self, username: str, campaign_brief: str) -> Optional[Dict]:
+    def get_cached_analysis(self, username: str, campaign_name: str) -> Optional[Dict]:
         """
         Get cached analysis if it exists and is not expired
         
         Args:
             username: Creator username
-            campaign_brief: The campaign brief used for analysis
+            campaign_name: The campaign name (not the full brief)
             
         Returns:
             Cached analysis dict if valid, None otherwise
         """
         cache = self.load_cache()
-        cache_key = self.get_cache_key(username, campaign_brief)
+        cache_key = self.get_cache_key(username, campaign_name)
         
         if cache_key not in cache:
             return None
@@ -79,22 +79,24 @@ class AIAnalysisCache:
         
         return cached_data
     
-    def save_analysis(self, username: str, campaign_brief: str, analysis: str, recommendation: str = ""):
+    def save_analysis(self, username: str, campaign_name: str, campaign_brief: str, analysis: str, recommendation: str = ""):
         """
         Save analysis to cache
         
         Args:
             username: Creator username
-            campaign_brief: The campaign brief used
+            campaign_name: The campaign name
+            campaign_brief: The full campaign brief used (stored for reference)
             analysis: The AI analysis text
             recommendation: Extracted recommendation (Yes/No/Maybe)
         """
         cache = self.load_cache()
-        cache_key = self.get_cache_key(username, campaign_brief)
+        cache_key = self.get_cache_key(username, campaign_name)
         
         cache[cache_key] = {
             'username': username,
-            'campaign_brief': campaign_brief,
+            'campaign_name': campaign_name,
+            'campaign_brief': campaign_brief,  # Store the brief used for reference
             'analysis': analysis,
             'recommendation': recommendation,
             'analyzed_at': datetime.now().isoformat(),
@@ -185,13 +187,14 @@ if __name__ == "__main__":
     
     cache.save_analysis(
         username="testcreator",
+        campaign_name="Test Campaign",
         campaign_brief="fashion and lifestyle brand collaboration",
         analysis=test_analysis,
         recommendation="Yes"
     )
     
     # Test retrieving
-    cached = cache.get_cached_analysis("testcreator", "fashion and lifestyle brand collaboration")
+    cached = cache.get_cached_analysis("testcreator", "Test Campaign")
     if cached:
         print("✅ Cache save/retrieve working")
         print(f"   Expires at: {cached['expires_at']}")

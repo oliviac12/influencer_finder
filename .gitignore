@@ -26,7 +26,28 @@ Thumbs.db
 
 # Logs
 *.log
+logs/
 
 # Temporary files
 *.tmp
 *.temp
+temp_attachments/
+
+# Project specific
+creator_reviews.json
+email_drafts_*.json
+
+# Cache files
+cache/*.json
+cache/*.csv
+cache/email_replies.json
+cache/sent_emails_tracking.json
+
+# Test files in root
+test_*.py
+
+# Temporary documentation
+ENABLE_*.md
+REPLY_*.md
+ZOHO_*.md
+HOUSEKEEPING*.md
