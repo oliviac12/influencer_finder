@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "influencer-finder"
+version = "0.1.0"
+description = "TikTok Influencer Finder and Outreach System"
+authors = ["Olivia Chen"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+streamlit = "^1.32.0"
+pandas = "^2.0.3"
+anthropic = "^0.18.0"
+python-dotenv = "^1.0.0"
+tikapi = "^1.0.0"
+Pillow = "^10.2.0"
+openpyxl = "^3.1.2"
+requests = "^2.31.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
