@@ -1,5 +1,5 @@
 # The command that runs when you hit the run button
-run = "pip install -r requirements.txt && streamlit run app/creator_review_app.py --server.port 8501 --server.address 0.0.0.0"
+run = "pip install -r requirements.txt && python start_services.py"
 
 # The primary language of the repl
 language = "python3"
@@ -12,5 +12,5 @@ hidden = ["venv", ".config", "**/__pycache__", "**/.mypy_cache", "**/*.pyc"]
 
 # Hosting configuration
 [deployment]
-run = ["sh", "-c", "pip install -r requirements.txt && streamlit run app/creator_review_app.py --server.port 8501 --server.address 0.0.0.0"]
+run = ["sh", "-c", "pip install -r requirements.txt && python start_services.py"]
 deploymentTarget = "cloudrun"
