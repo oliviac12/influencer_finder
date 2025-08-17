@@ -1,19 +1,11 @@
-<<<<<<< HEAD
-run = "python run_app.py"
+run = "python3 run_app.py"
 entrypoint = "run_app.py"
 
 [deployment]
-run = ["sh", "-c", "python run_app.py"]
-=======
-run = "streamlit run undefined"
-modules = ["python-3.12", "nix"]
-
-[deployment]
-run = ["sh", "-c", "streamlit run undefined"]
->>>>>>> 7cd6fc0 (Pre-Recovery checkpoint)
+run = ["sh", "-c", "python3 run_app.py"]
 
 [nix]
-channel = "stable-25_05"
+channel = "stable-23_05"
 
 [unitTest]
 language = "python3"
