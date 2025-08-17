@@ -37,11 +37,11 @@ temp_attachments/
 creator_reviews.json
 email_drafts_*.json
 
-# Cache files
-cache/*.json
-cache/*.csv
-cache/email_replies.json
+# Cache files - only ignore specific ones
+cache/scheduled_emails.json
 cache/sent_emails_tracking.json
+cache/email_replies.json
+cache/*.csv
 
 # Test files in root
 test_*.py
