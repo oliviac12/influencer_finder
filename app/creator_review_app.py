@@ -19,7 +19,7 @@ from utils.email_cache import EmailCache
 from utils.campaign_manager import CampaignManager
 import anthropic
 from dotenv import load_dotenv
-from email_outreach import render_email_outreach_section
+from email_outreach_v2 import render_email_outreach_section
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 
@@ -319,6 +319,65 @@ def main():
     
     app = CreatorReviewApp()
     
+    # Campaign selector at the top - always visible
+    st.markdown("---")
+    col_campaign, col_brief = st.columns([1, 3])
+    
+    with col_campaign:
+        # Campaign selection/creation - check all sources
+        campaigns_from_ai = set([v.get('campaign_name', '') for v in app.ai_cache.load_cache().values() if v.get('campaign_name')])
+        campaigns_from_human = set([v.get('campaign_name', '') for v in app.human_cache.cache.values() if v.get('campaign_name')])
+        campaigns_from_manager = set(app.campaign_manager.get_all_campaign_names())
+        all_campaigns = campaigns_from_ai.union(campaigns_from_human).union(campaigns_from_manager)
+        existing_campaigns = sorted([c for c in all_campaigns if c])  # Remove empty strings and sort
+        
+        if existing_campaigns:
+            campaign_options = ["➕ Create New Campaign"] + existing_campaigns
+            selected_option = st.selectbox("🎯 **Select Campaign**", campaign_options, key="global_campaign_selector")
+            
+            if selected_option == "➕ Create New Campaign":
+                campaign_name = st.text_input("Campaign Name", placeholder="e.g., Summer Travel 2024", key="new_campaign_name")
+                if campaign_name:
+                    st.session_state.current_campaign = campaign_name
+            else:
+                campaign_name = selected_option
+                st.session_state.current_campaign = campaign_name
+        else:
+            campaign_name = st.text_input("🎯 **Campaign Name**", value="My First Campaign", placeholder="e.g., Summer Travel 2024")
+            if campaign_name:
+                st.session_state.current_campaign = campaign_name
+    
+    with col_brief:
+        if campaign_name and campaign_name != "➕ Create New Campaign":
+            # Get existing brief if available
+            saved_brief = app.campaign_manager.get_campaign_brief(campaign_name)
+            if not saved_brief:
+                # Check AI cache for brief
+                ai_cache = app.ai_cache.load_cache()
+                for key, data in ai_cache.items():
+                    if data.get('campaign_name') == campaign_name and data.get('campaign_brief'):
+                        saved_brief = data['campaign_brief']
+                        break
+            
+            campaign_brief = st.text_area(
+                "**Campaign Brief**",
+                value=saved_brief or "fashion and lifestyle brand collaboration with focus on authentic content and strong engagement",
+                height=60,
+                help="Describe what you're looking for. This brief is used for AI analysis.",
+                key=f"global_campaign_brief_{campaign_name}"
+            )
+            
+            # Save campaign if modified
+            if campaign_brief and campaign_brief != saved_brief:
+                app.campaign_manager.save_campaign(campaign_name, campaign_brief)
+            
+            # Show campaign stats
+            stats = app.human_cache.get_campaign_stats(campaign_name)
+            if stats['total_reviewed'] > 0:
+                st.success(f"📊 **Campaign Progress**: {stats['total_reviewed']} reviewed | ✅ {stats['approved']} approved | ❌ {stats['rejected']} rejected | 🤔 {stats['maybe']} maybe")
+    
+    st.markdown("---")
+    
     # Create tabs
     tab1, tab2, tab3 = st.tabs(["📊 Creator Analysis", "📧 Email Outreach", "💬 Reply Management"])
     
@@ -337,112 +396,18 @@ def main():
             st.error("No creators found in database. Run the screening process first.")
             return
         
-        # Main interface
-        st.header(f"📋 Campaign Analysis Setup")
+        # Main interface - simplified since campaign is now at the top
+        st.header(f"📋 Creator Analysis")
         st.write(f"Database contains **{creator_count} creators** available for analysis")
         
-        # Campaign Management Section
-        st.subheader("🎯 Campaign Management")
-        col_name, col_brief = st.columns([1, 2])
+        # Get campaign from session state (set by global selector)
+        campaign_name = st.session_state.get('current_campaign')
+        campaign_brief = campaign_brief if 'campaign_brief' in locals() else ""
         
-        with col_name:
-            # Campaign selection/creation - check all sources
-            campaigns_from_ai = set([v.get('campaign_name', '') for v in app.ai_cache.load_cache().values() if v.get('campaign_name')])
-            campaigns_from_human = set([v.get('campaign_name', '') for v in app.human_cache.cache.values() if v.get('campaign_name')])
-            campaigns_from_manager = set(app.campaign_manager.get_all_campaign_names())
-            all_campaigns = campaigns_from_ai.union(campaigns_from_human).union(campaigns_from_manager)
-            existing_campaigns = sorted([c for c in all_campaigns if c])  # Remove empty strings and sort
-            
-            if existing_campaigns:
-                campaign_options = ["➕ Create New Campaign"] + existing_campaigns
-                selected_option = st.selectbox("Select Campaign", campaign_options, key="campaign_selector")
-                
-                if selected_option == "➕ Create New Campaign":
-                    campaign_name = st.text_input("Campaign Name", placeholder="e.g., Summer Travel 2024")
-                    if campaign_name:
-                        st.session_state.current_campaign = campaign_name
-                else:
-                    campaign_name = selected_option
-                    st.info(f"📂 Using existing campaign: **{campaign_name}**")
-                    
-                    # Store campaign name in session state for access across tabs
-                    st.session_state.current_campaign = campaign_name
-                    
-                    # Store campaign name in session state to detect changes
-                    if 'last_selected_campaign' not in st.session_state:
-                        st.session_state.last_selected_campaign = campaign_name
-                    elif st.session_state.last_selected_campaign != campaign_name:
-                        # Campaign changed - clear the brief from session state to load new one
-                        st.session_state.last_selected_campaign = campaign_name
-                        if 'campaign_brief_text' in st.session_state:
-                            del st.session_state['campaign_brief_text']
-            else:
-                campaign_name = st.text_input("Campaign Name", value="My First Campaign", placeholder="e.g., Summer Travel 2024")
-                if campaign_name:
-                    st.session_state.current_campaign = campaign_name
-        
-        with col_brief:
-            # Initialize default brief
-            default_brief = "fashion and lifestyle brand collaboration with focus on authentic content and strong engagement"
-            
-            # Determine what brief to show
-            brief_to_show = default_brief
-            
-            # If existing campaign selected, load its brief
-            if campaign_name and campaign_name != "➕ Create New Campaign":
-                # Check if we need to load a new brief (either no brief in session or campaign changed)
-                should_load_brief = (
-                    'loaded_campaign_brief' not in st.session_state or
-                    st.session_state.get('loaded_campaign_brief') != campaign_name
-                )
-                
-                if should_load_brief:
-                    # First check CampaignManager for the brief
-                    saved_brief = app.campaign_manager.get_campaign_brief(campaign_name)
-                    if saved_brief:
-                        brief_to_show = saved_brief
-                        st.session_state.loaded_campaign_brief = campaign_name
-                    else:
-                        # Fall back to looking in AI cache
-                        ai_cache = app.ai_cache.load_cache()
-                        for key, data in ai_cache.items():
-                            if data.get('campaign_name') == campaign_name and data.get('campaign_brief'):
-                                brief_to_show = data['campaign_brief']
-                                # Also save it to CampaignManager for future use
-                                app.campaign_manager.save_campaign(campaign_name, data['campaign_brief'])
-                                st.session_state.loaded_campaign_brief = campaign_name
-                                break
-                else:
-                    # Use the existing value if already loaded for this campaign
-                    brief_to_show = st.session_state.get('campaign_brief_text', default_brief)
-            
-            # Campaign brief input
-            campaign_brief = st.text_area(
-                "Campaign Brief (can be modified anytime)",
-                value=brief_to_show,
-                height=100,
-                help="Describe what you're looking for. You can update this without losing cached analyses.",
-                key=f"campaign_brief_{campaign_name if campaign_name else 'default'}"
-            )
-            
-            # Store the current brief in session state
-            st.session_state.campaign_brief_text = campaign_brief
-        
-        # Show campaign stats if exists
-        if campaign_name and campaign_name != "➕ Create New Campaign":
-            stats = app.human_cache.get_campaign_stats(campaign_name)
-            if stats['total_reviewed'] > 0:
-                st.success(f"📊 **Campaign Progress**: {stats['total_reviewed']} reviewed | ✅ {stats['approved']} approved | ❌ {stats['rejected']} rejected | 🤔 {stats['maybe']} maybe")
-            
-            # Migration helper for legacy reviews
-            legacy_count = len([r for r in app.reviews.values() if r.get('status') in ['Approved', 'Maybe', 'Rejected']])
-            if legacy_count > 0:
-                st.info(f"📋 Found {legacy_count} legacy reviews. When you see creators with legacy reviews, just click the decision buttons to migrate them to this campaign.")
-                if st.button("🔄 Clear Legacy Cache (Start Fresh)", help="This will delete all legacy reviews to avoid confusion"):
-                    app.reviews = {}
-                    app.save_reviews()
-                    st.success("✅ Legacy reviews cleared. All future reviews will use the new campaign system.")
-                    st.rerun()
+        # Get the brief from the global selector's text area
+        if campaign_name:
+            saved_brief = app.campaign_manager.get_campaign_brief(campaign_name)
+            campaign_brief = saved_brief or "fashion and lifestyle brand collaboration with focus on authentic content and strong engagement"
         
         col1, col2 = st.columns([2, 1])
         

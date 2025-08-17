@@ -368,8 +368,16 @@ def render_email_outreach_section(app, current_campaign=None):
             creator_data = next(c[1] for c in creators_with_emails if c[0] == selected_creator)
             creator_data['username'] = selected_creator
             
-            # Get AI analysis
-            ai_analysis = app.reviews[selected_creator].get('analysis', '')
+            # Get AI analysis from cache or legacy
+            ai_analysis = ""
+            if current_campaign and current_campaign != "➕ Create New Campaign":
+                cached_analysis = app.ai_cache.get_cached_analysis(selected_creator, current_campaign)
+                if cached_analysis:
+                    ai_analysis = cached_analysis.get('analysis', '')
+            
+            # Fallback to legacy reviews
+            if not ai_analysis and selected_creator in app.reviews:
+                ai_analysis = app.reviews[selected_creator].get('analysis', '')
             
             # Generate email
             email_draft = email_manager.generate_personalized_email(
@@ -518,21 +526,41 @@ def render_email_outreach_section(app, current_campaign=None):
         if st.button("📝 Generate All Drafts"):
             if creators_with_emails:
                 all_drafts = []
-                for username, creator_data in creators_with_emails:
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                
+                for idx, (username, creator_data) in enumerate(creators_with_emails):
+                    status_text.text(f"Generating draft for @{username}...")
                     creator_data['username'] = username
-                    ai_analysis = app.reviews[username].get('analysis', '')
+                    
+                    # Try to get AI analysis from cache
+                    ai_analysis = ""
+                    if current_campaign and current_campaign != "➕ Create New Campaign":
+                        cached_analysis = app.ai_cache.get_cached_analysis(username, current_campaign)
+                        if cached_analysis:
+                            ai_analysis = cached_analysis.get('analysis', '')
+                    
+                    # Fallback to legacy reviews if no cached analysis
+                    if not ai_analysis and username in app.reviews:
+                        ai_analysis = app.reviews[username].get('analysis', '')
+                    
                     draft = email_manager.generate_personalized_email(
                         creator_data,
                         ai_analysis,
                         template_choice,
                         campaign_name
                     )
+                    
+                    progress_bar.progress((idx + 1) / len(creators_with_emails))
                     all_drafts.append({
                         'username': username,
                         'email': creator_data['profile'].get('email', ''),
                         'subject': draft['subject'].replace('[BRAND_NAME]', brand_name),
                         'body': draft['body'].replace('[BRAND_NAME]', brand_name).replace('[YOUR_NAME]', your_name)
                     })
+                
+                # Clear progress indicators
+                status_text.text("✅ All drafts generated!")
                 
                 # Save drafts
                 drafts_file = f"email_drafts_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
