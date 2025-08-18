@@ -16,7 +16,7 @@ except ImportError:
     from utils.email_scheduler import EmailScheduler
 
 
-def render_scheduling_section(email_manager, drafts, current_campaign, attachment_path=None):
+def render_scheduling_section(email_manager, drafts, current_campaign, attachment_path=None, app=None):
     """Render email scheduling interface"""
     
     st.subheader("📅 Schedule Email Sending")
@@ -268,7 +268,7 @@ def render_scheduling_section(email_manager, drafts, current_campaign, attachmen
             
             # Get creators with emails for this campaign
             creators_with_emails = []
-            if current_campaign and current_campaign != "➕ Create New Campaign":
+            if app and current_campaign and current_campaign != "➕ Create New Campaign":
                 # Get from campaign-specific human review cache
                 campaign_reviews = app.human_cache.get_campaign_reviews(current_campaign)
                 approved_creators = [
@@ -336,7 +336,7 @@ def render_scheduling_section(email_manager, drafts, current_campaign, attachmen
                                 
                                 # Get AI analysis for personalization
                                 ai_analysis = ""
-                                if current_campaign and current_campaign != "➕ Create New Campaign":
+                                if app and current_campaign and current_campaign != "➕ Create New Campaign":
                                     cached_analysis = app.ai_cache.get_cached_analysis(username, current_campaign)
                                     if cached_analysis:
                                         ai_analysis = cached_analysis.get('analysis', '')
@@ -391,6 +391,8 @@ def render_scheduling_section(email_manager, drafts, current_campaign, attachmen
                         st.warning("Select some creators to test")
                     if not test_emails:
                         st.warning("Enter test email addresses")
+            elif not app:
+                st.warning("App context not available for creator testing")
             else:
                 st.warning("No creators with emails found in this campaign")
         
