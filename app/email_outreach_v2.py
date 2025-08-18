@@ -470,85 +470,85 @@ def render_email_outreach_section(app, current_campaign=None):
         else:
             missing_drafts = len(creators_with_emails) - cached_drafts_available
             if st.button(f"🚀 Generate Email Drafts ({missing_drafts} new, {cached_drafts_available} cached)", type="primary", disabled=not creators_with_emails):
-            with st.spinner("Generating personalized emails..."):
-                all_drafts = []
-                progress_bar = st.progress(0)
-                status_text = st.empty()
-                
-                cache_hits = 0
-                new_drafts = 0
-                
-                for idx, (username, creator_data) in enumerate(creators_with_emails):
-                    creator_data['username'] = username
+                with st.spinner("Generating personalized emails..."):
+                    all_drafts = []
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
                     
-                    # Check if we have a cached draft first
-                    cached = email_manager.draft_cache.has_draft(username, current_campaign or "default", template_choice)
+                    cache_hits = 0
+                    new_drafts = 0
                     
-                    if cached:
-                        status_text.text(f"Using cached draft for @{username}...")
-                        cache_hits += 1
+                    for idx, (username, creator_data) in enumerate(creators_with_emails):
+                        creator_data['username'] = username
+                        
+                        # Check if we have a cached draft first
+                        cached = email_manager.draft_cache.has_draft(username, current_campaign or "default", template_choice)
+                        
+                        if cached:
+                            status_text.text(f"Using cached draft for @{username}...")
+                            cache_hits += 1
+                        else:
+                            status_text.text(f"Generating new draft for @{username}...")
+                            new_drafts += 1
+                        
+                        # Get AI analysis from cache
+                        ai_analysis = ""
+                        if current_campaign and current_campaign != "➕ Create New Campaign":
+                            cached_analysis = app.ai_cache.get_cached_analysis(username, current_campaign)
+                            if cached_analysis:
+                                ai_analysis = cached_analysis.get('analysis', '')
+                        
+                        # Fallback to legacy reviews
+                        if not ai_analysis and hasattr(app, 'reviews') and username in app.reviews:
+                            ai_analysis = app.reviews[username].get('analysis', '')
+                        
+                        
+                        # Additional fallback - try common campaign names if available
+                        if not ai_analysis:
+                            common_campaigns = ["wonder_fall2025", "wonder_2025", "default"]
+                            for campaign in common_campaigns:
+                                try:
+                                    cached_analysis = app.ai_cache.get_cached_analysis(username, campaign)
+                                    if cached_analysis and cached_analysis.get('analysis'):
+                                        ai_analysis = cached_analysis.get('analysis', '')
+                                        break
+                                except:
+                                    continue
+                        
+                        if not ai_analysis:
+                            st.warning(f"❌ No AI analysis found for @{username} - using generic personalization")
+                        
+                        # Generate email (will use cache if available)
+                        draft = email_manager.generate_personalized_email(
+                            creator_data,
+                            ai_analysis,
+                            template_choice,
+                            current_campaign or "default",
+                            username=username,
+                            use_cache=True
+                        )
+                        
+                        # Apply replacements
+                        draft['subject'] = draft['subject'].replace('[BRAND_NAME]', brand_name)
+                        draft['body'] = draft['body'].replace('[BRAND_NAME]', brand_name).replace('[YOUR_NAME]', your_name)
+                        draft['username'] = username
+                        draft['email'] = creator_data['profile'].get('email', '')
+                        draft['nickname'] = creator_data['profile'].get('nickname', username)
+                        draft['followers'] = creator_data['profile'].get('followers', 0)
+                        
+                        all_drafts.append(draft)
+                        progress_bar.progress((idx + 1) / len(creators_with_emails))
+                    
+                    status_text.text("")
+                    st.session_state[f"email_drafts_{current_campaign}"] = all_drafts
+                    
+                    # Show cache statistics
+                    if cache_hits > 0:
+                        st.success(f"✅ Generated {len(all_drafts)} email drafts! ({cache_hits} from cache, {new_drafts} new)")
                     else:
-                        status_text.text(f"Generating new draft for @{username}...")
-                        new_drafts += 1
+                        st.success(f"✅ Generated {len(all_drafts)} email drafts!")
                     
-                    # Get AI analysis from cache
-                    ai_analysis = ""
-                    if current_campaign and current_campaign != "➕ Create New Campaign":
-                        cached_analysis = app.ai_cache.get_cached_analysis(username, current_campaign)
-                        if cached_analysis:
-                            ai_analysis = cached_analysis.get('analysis', '')
-                    
-                    # Fallback to legacy reviews
-                    if not ai_analysis and hasattr(app, 'reviews') and username in app.reviews:
-                        ai_analysis = app.reviews[username].get('analysis', '')
-                    
-                    
-                    # Additional fallback - try common campaign names if available
-                    if not ai_analysis:
-                        common_campaigns = ["wonder_fall2025", "wonder_2025", "default"]
-                        for campaign in common_campaigns:
-                            try:
-                                cached_analysis = app.ai_cache.get_cached_analysis(username, campaign)
-                                if cached_analysis and cached_analysis.get('analysis'):
-                                    ai_analysis = cached_analysis.get('analysis', '')
-                                    break
-                            except:
-                                continue
-                    
-                    if not ai_analysis:
-                        st.warning(f"❌ No AI analysis found for @{username} - using generic personalization")
-                    
-                    # Generate email (will use cache if available)
-                    draft = email_manager.generate_personalized_email(
-                        creator_data,
-                        ai_analysis,
-                        template_choice,
-                        current_campaign or "default",
-                        username=username,
-                        use_cache=True
-                    )
-                    
-                    # Apply replacements
-                    draft['subject'] = draft['subject'].replace('[BRAND_NAME]', brand_name)
-                    draft['body'] = draft['body'].replace('[BRAND_NAME]', brand_name).replace('[YOUR_NAME]', your_name)
-                    draft['username'] = username
-                    draft['email'] = creator_data['profile'].get('email', '')
-                    draft['nickname'] = creator_data['profile'].get('nickname', username)
-                    draft['followers'] = creator_data['profile'].get('followers', 0)
-                    
-                    all_drafts.append(draft)
-                    progress_bar.progress((idx + 1) / len(creators_with_emails))
-                
-                status_text.text("")
-                st.session_state[f"email_drafts_{current_campaign}"] = all_drafts
-                
-                # Show cache statistics
-                if cache_hits > 0:
-                    st.success(f"✅ Generated {len(all_drafts)} email drafts! ({cache_hits} from cache, {new_drafts} new)")
-                else:
-                    st.success(f"✅ Generated {len(all_drafts)} email drafts!")
-                
-                st.rerun()
+                    st.rerun()
     
     # Display drafts if they exist
     if f"email_drafts_{current_campaign}" in st.session_state:
