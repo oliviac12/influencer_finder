@@ -507,10 +507,14 @@ def render_email_outreach_section(app, current_campaign=None):
     if f"email_drafts_{current_campaign}" in st.session_state:
         drafts = st.session_state[f"email_drafts_{current_campaign}"]
         
-        # Pre-calculate sent status for all drafts to avoid repeated lookups
-        sent_status = {}
-        for draft in drafts:
-            sent_status[draft['username']] = email_manager.is_sent(draft['username'], current_campaign or "default")
+        # Cache sent status in session state to avoid repeated lookups on every render
+        sent_status_key = f"sent_status_{current_campaign}"
+        if sent_status_key not in st.session_state:
+            st.session_state[sent_status_key] = {}
+            for draft in drafts:
+                st.session_state[sent_status_key][draft['username']] = email_manager.is_sent(draft['username'], current_campaign or "default")
+        
+        sent_status = st.session_state[sent_status_key]
         
         # Filter and sort options
         col_filter1, col_filter2, col_filter3, col_filter4 = st.columns(4)
@@ -565,6 +569,11 @@ def render_email_outreach_section(app, current_campaign=None):
                         time.sleep(2)  # Rate limiting
                     
                     status.text("")
+                    # Invalidate sent status cache after bulk send
+                    sent_status_key = f"sent_status_{current_campaign or 'default'}"
+                    if sent_status_key in st.session_state:
+                        del st.session_state[sent_status_key]
+                    
                     st.success(f"✅ Sent {success_count} emails successfully!")
                     if failed:
                         st.error(f"Failed to send {len(failed)} emails:")
@@ -640,6 +649,10 @@ def render_email_outreach_section(app, current_campaign=None):
                                     campaign=current_campaign or "default"
                                 )
                                 if success:
+                                    # Invalidate sent status cache
+                                    sent_status_key = f"sent_status_{current_campaign or 'default'}"
+                                    if sent_status_key in st.session_state:
+                                        del st.session_state[sent_status_key]
                                     st.success("✅ Sent!")
                                     st.rerun()
                                 else:
