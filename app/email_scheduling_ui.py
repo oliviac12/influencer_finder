@@ -205,6 +205,9 @@ def render_scheduling_section(email_manager, drafts, current_campaign, attachmen
             # Show scheduled emails
             for email in pending_schedule[:10]:  # Show first 10
                 scheduled_time = email['scheduled_time']
+                # Parse string to datetime if needed
+                if isinstance(scheduled_time, str):
+                    scheduled_time = datetime.fromisoformat(scheduled_time.replace('Z', '+00:00'))
                 # Ensure we compare timezone-aware datetimes
                 if scheduled_time.tzinfo is None:
                     scheduled_time = scheduled_time.replace(tzinfo=pacific_tz)
