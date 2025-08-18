@@ -1,17 +1,26 @@
 """
 Email Tracking Service for Wonder Campaign
-Simple Flask app to track email opens via tracking pixels
+Enhanced with Supabase email monitoring dashboard
 """
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, render_template_string
 from database import init_db, log_email_open, get_tracking_stats, get_campaign_stats
 import io
 import base64
-from datetime import datetime
+import os
+from datetime import datetime, timedelta
+from supabase import create_client, Client
 
 app = Flask(__name__)
 
 # Initialize database on startup
 init_db()
+
+# Initialize Supabase client
+def get_supabase():
+    """Get Supabase client"""
+    url = os.getenv('SUPABASE_URL', 'https://jvyachugejlsvrwzscoi.supabase.co')
+    key = os.getenv('SUPABASE_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp2eWFjaHVnZWpsc3Zyd3pzY29pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU0Nzc0ODgsImV4cCI6MjA3MTA1MzQ4OH0.irmZDdtwmd1pe5Ws_EIU1TNzCZP1no3WGxBEtZh552k')
+    return create_client(url, key)
 
 # 1x1 transparent pixel image (base64 encoded)
 TRACKING_PIXEL = base64.b64decode(
@@ -20,11 +29,16 @@ TRACKING_PIXEL = base64.b64decode(
 
 @app.route('/')
 def home():
-    """Simple home page"""
+    """Enhanced home page with dashboard links"""
     return """
     <h1>Wonder Email Tracking Service</h1>
     <p>Email tracking service for Wonder campaign emails.</p>
-    <p><a href="/stats">View Stats</a></p>
+    <div style="margin: 20px 0;">
+        <h3>📊 Dashboards:</h3>
+        <p><a href="/dashboard">🚀 Live Email Dashboard (Supabase)</a></p>
+        <p><a href="/stats">📈 Tracking Pixel Stats</a></p>
+        <p><a href="/morning-report">☀️ Morning Status Report</a></p>
+    </div>
     """
 
 @app.route('/track/open')
@@ -225,6 +239,313 @@ def test_tracking():
     <img src="/track/open?id=test_email_123&campaign=test_campaign" width="1" height="1" style="display:none;">
     <p><a href="/stats">View Stats</a></p>
     """
+
+@app.route('/dashboard')
+def supabase_dashboard():
+    """Live email dashboard pulling from Supabase"""
+    try:
+        supabase = get_supabase()
+        
+        # Get counts from both tables
+        scheduled = supabase.table('scheduled_emails').select('id', count='exact').execute()
+        sent = supabase.table('sent_emails').select('id', count='exact').execute()
+        
+        # Get pending emails
+        pending = supabase.table('scheduled_emails')\
+            .select('id', count='exact')\
+            .eq('status', 'pending')\
+            .execute()
+        
+        # Get failed emails
+        failed = supabase.table('scheduled_emails')\
+            .select('id', count='exact')\
+            .eq('status', 'failed')\
+            .execute()
+        
+        # Get today's sent emails
+        today = datetime.now().date()
+        today_sent = supabase.table('sent_emails')\
+            .select('id', count='exact')\
+            .gte('sent_at', f"{today}T00:00:00")\
+            .lte('sent_at', f"{today}T23:59:59")\
+            .execute()
+        
+        # Get next 5 scheduled emails
+        next_emails = supabase.table('scheduled_emails')\
+            .select('username, to_email, scheduled_time, campaign')\
+            .eq('status', 'pending')\
+            .order('scheduled_time')\
+            .limit(5)\
+            .execute()
+        
+        # Get recent sent emails
+        recent_sent = supabase.table('sent_emails')\
+            .select('username, to_email, sent_at, campaign')\
+            .order('sent_at', desc=True)\
+            .limit(10)\
+            .execute()
+        
+        # Calculate stats
+        total_scheduled = scheduled.count or 0
+        total_sent = sent.count or 0
+        total_pending = pending.count or 0
+        total_failed = failed.count or 0
+        sent_today = today_sent.count or 0
+        
+        success_rate = (total_sent / max(total_scheduled, 1)) * 100
+        
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Wonder Email Dashboard</title>
+            <meta http-equiv="refresh" content="30">
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 20px; background: #f5f7fa; }}
+                .container {{ max-width: 1200px; margin: 0 auto; }}
+                .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; }}
+                .stats-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }}
+                .stat-card {{ background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); text-align: center; }}
+                .stat-number {{ font-size: 2em; font-weight: bold; margin-bottom: 5px; }}
+                .stat-label {{ color: #666; font-size: 0.9em; }}
+                .pending {{ color: #f39c12; }}
+                .sent {{ color: #27ae60; }}
+                .failed {{ color: #e74c3c; }}
+                .scheduled {{ color: #3498db; }}
+                .section {{ background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }}
+                .email-list {{ max-height: 300px; overflow-y: auto; }}
+                .email-item {{ padding: 10px; border-bottom: 1px solid #eee; }}
+                .email-item:last-child {{ border-bottom: none; }}
+                .timestamp {{ color: #666; font-size: 0.9em; }}
+                .refresh-note {{ text-align: center; color: #666; font-size: 0.9em; margin-top: 20px; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>🚀 Wonder Email Dashboard</h1>
+                    <p>Real-time email campaign monitoring • Auto-refresh every 30 seconds</p>
+                    <p><strong>Last Updated:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S PT')}</p>
+                </div>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-number scheduled">{total_scheduled}</div>
+                        <div class="stat-label">Total Scheduled</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number sent">{total_sent}</div>
+                        <div class="stat-label">Total Sent</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number pending">{total_pending}</div>
+                        <div class="stat-label">Pending</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number failed">{total_failed}</div>
+                        <div class="stat-label">Failed</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number sent">{sent_today}</div>
+                        <div class="stat-label">Sent Today</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">{success_rate:.1f}%</div>
+                        <div class="stat-label">Success Rate</div>
+                    </div>
+                </div>
+                
+                <div class="section">
+                    <h2>⏰ Next 5 Scheduled Emails</h2>
+                    <div class="email-list">
+        """
+        
+        if next_emails.data:
+            for email in next_emails.data:
+                scheduled_time = datetime.fromisoformat(email['scheduled_time'].replace('Z', '+00:00'))
+                time_str = scheduled_time.strftime('%b %d, %I:%M %p')
+                html += f"""
+                        <div class="email-item">
+                            <strong>@{email['username']}</strong> → {email['to_email']}
+                            <div class="timestamp">📅 {time_str} • Campaign: {email['campaign']}</div>
+                        </div>
+                """
+        else:
+            html += '<div class="email-item">No pending emails</div>'
+        
+        html += """
+                    </div>
+                </div>
+                
+                <div class="section">
+                    <h2>✅ Recently Sent Emails</h2>
+                    <div class="email-list">
+        """
+        
+        if recent_sent.data:
+            for email in recent_sent.data:
+                sent_time = datetime.fromisoformat(email['sent_at'].replace('Z', '+00:00'))
+                time_str = sent_time.strftime('%b %d, %I:%M %p')
+                html += f"""
+                        <div class="email-item">
+                            <strong>@{email['username']}</strong> → {email['to_email']}
+                            <div class="timestamp">✅ {time_str} • Campaign: {email['campaign']}</div>
+                        </div>
+                """
+        else:
+            html += '<div class="email-item">No emails sent yet</div>'
+        
+        html += f"""
+                    </div>
+                </div>
+                
+                <div class="refresh-note">
+                    🔄 Page auto-refreshes every 30 seconds • 
+                    <a href="/morning-report">☀️ Morning Report</a> • 
+                    <a href="/api/dashboard">📊 JSON API</a>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        return html
+        
+    except Exception as e:
+        return f"<h1>Dashboard Error: {e}</h1><p><a href='/'>← Back to Home</a></p>"
+
+@app.route('/morning-report')
+def morning_report():
+    """Simple morning status report"""
+    try:
+        supabase = get_supabase()
+        
+        # Get today's stats
+        today = datetime.now().date()
+        today_sent = supabase.table('sent_emails')\
+            .select('*')\
+            .gte('sent_at', f"{today}T00:00:00")\
+            .lte('sent_at', f"{today}T23:59:59")\
+            .execute()
+        
+        # Get pending emails
+        pending = supabase.table('scheduled_emails')\
+            .select('*')\
+            .eq('status', 'pending')\
+            .execute()
+        
+        # Get failed emails
+        failed = supabase.table('scheduled_emails')\
+            .select('*')\
+            .eq('status', 'failed')\
+            .execute()
+        
+        # Group by campaign
+        campaigns = {}
+        for email in today_sent.data or []:
+            campaign = email.get('campaign', 'Unknown')
+            campaigns[campaign] = campaigns.get(campaign, 0) + 1
+        
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Morning Email Report</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 40px; background: #f8f9fa; }}
+                .report {{ max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }}
+                .header {{ text-align: center; margin-bottom: 30px; }}
+                .stat {{ background: #f8f9fa; padding: 15px; margin: 10px 0; border-radius: 5px; border-left: 4px solid #007bff; }}
+                .success {{ border-left-color: #28a745; }}
+                .warning {{ border-left-color: #ffc107; }}
+                .danger {{ border-left-color: #dc3545; }}
+                .campaign {{ background: #e9ecef; padding: 10px; margin: 5px 0; border-radius: 3px; }}
+            </style>
+        </head>
+        <body>
+            <div class="report">
+                <div class="header">
+                    <h1>☀️ Good Morning!</h1>
+                    <h2>Email Campaign Status Report</h2>
+                    <p>{datetime.now().strftime('%A, %B %d, %Y')}</p>
+                </div>
+                
+                <div class="stat success">
+                    <h3>✅ Emails Sent Today</h3>
+                    <p><strong>{len(today_sent.data or [])}</strong> emails successfully delivered</p>
+                </div>
+                
+                <div class="stat warning">
+                    <h3>⏰ Pending Emails</h3>
+                    <p><strong>{len(pending.data or [])}</strong> emails waiting to send</p>
+                </div>
+                
+                <div class="stat danger">
+                    <h3>❌ Failed Emails</h3>
+                    <p><strong>{len(failed.data or [])}</strong> emails failed</p>
+                </div>
+                
+                <div class="stat">
+                    <h3>📊 Campaign Breakdown</h3>
+        """
+        
+        if campaigns:
+            for campaign, count in campaigns.items():
+                html += f'<div class="campaign">{campaign}: {count} sent</div>'
+        else:
+            html += '<div class="campaign">No campaigns sent today</div>'
+        
+        html += f"""
+                </div>
+                
+                <div style="text-align: center; margin-top: 30px;">
+                    <p><a href="/dashboard">📊 View Full Dashboard</a></p>
+                    <p><small>Report generated at {datetime.now().strftime('%H:%M:%S PT')}</small></p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        return html
+        
+    except Exception as e:
+        return f"<h1>Report Error: {e}</h1>"
+
+@app.route('/api/dashboard')
+def api_dashboard():
+    """JSON API for dashboard data"""
+    try:
+        supabase = get_supabase()
+        
+        # Get all stats
+        scheduled = supabase.table('scheduled_emails').select('id', count='exact').execute()
+        sent = supabase.table('sent_emails').select('id', count='exact').execute()
+        pending = supabase.table('scheduled_emails').select('id', count='exact').eq('status', 'pending').execute()
+        failed = supabase.table('scheduled_emails').select('id', count='exact').eq('status', 'failed').execute()
+        
+        today = datetime.now().date()
+        today_sent = supabase.table('sent_emails')\
+            .select('id', count='exact')\
+            .gte('sent_at', f"{today}T00:00:00")\
+            .lte('sent_at', f"{today}T23:59:59")\
+            .execute()
+        
+        return jsonify({
+            'success': True,
+            'stats': {
+                'total_scheduled': scheduled.count or 0,
+                'total_sent': sent.count or 0,
+                'pending': pending.count or 0,
+                'failed': failed.count or 0,
+                'sent_today': today_sent.count or 0,
+                'success_rate': ((sent.count or 0) / max(scheduled.count or 1, 1)) * 100
+            },
+            'last_updated': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
