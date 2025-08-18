@@ -204,7 +204,7 @@ def render_scheduling_section(email_manager, drafts, current_campaign, attachmen
             
             # Show scheduled emails
             for email in pending_schedule[:10]:  # Show first 10
-                scheduled_time = email['scheduled_datetime']
+                scheduled_time = email['scheduled_time']
                 # Ensure we compare timezone-aware datetimes
                 if scheduled_time.tzinfo is None:
                     scheduled_time = scheduled_time.replace(tzinfo=pacific_tz)
