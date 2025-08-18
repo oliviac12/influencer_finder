@@ -452,25 +452,25 @@ def render_email_outreach_section(app, current_campaign=None):
                     spinner_text = f"Loading {cached_drafts_available} cached + generating {missing_drafts} new drafts..."
                 
                 with st.spinner(spinner_text):
-                all_drafts = []
-                progress_bar = st.progress(0)
-                status_text = st.empty()
-                
-                cache_hits = 0
-                new_drafts = 0
-                
-                for idx, (username, creator_data) in enumerate(creators_with_emails):
-                    creator_data['username'] = username
+                    all_drafts = []
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
                     
-                    # Check if we have a cached draft first
-                    cached = email_manager.draft_cache.has_draft(username, current_campaign or "default")
-                    
-                    if cached:
-                        status_text.text(f"Loading cached draft for @{username}...")
-                        cache_hits += 1
-                    else:
-                        status_text.text(f"Generating new draft for @{username}...")
-                        new_drafts += 1
+                    cache_hits = 0
+                    new_drafts = 0
+                
+                    for idx, (username, creator_data) in enumerate(creators_with_emails):
+                        creator_data['username'] = username
+                        
+                        # Check if we have a cached draft first
+                        cached = email_manager.draft_cache.has_draft(username, current_campaign or "default")
+                        
+                        if cached:
+                            status_text.text(f"Loading cached draft for @{username}...")
+                            cache_hits += 1
+                        else:
+                            status_text.text(f"Generating new draft for @{username}...")
+                            new_drafts += 1
                         
                         # Get AI analysis from cache
                         ai_analysis = ""
