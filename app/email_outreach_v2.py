@@ -167,8 +167,15 @@ Best,
             import anthropic
             
             claude_api_key = os.getenv('ANTHROPIC_API_KEY')
-            if not claude_api_key or not ai_analysis:
+            if not claude_api_key:
+                print("⚠️ No ANTHROPIC_API_KEY found for personalization")
                 return personalization
+            
+            if not ai_analysis:
+                print("⚠️ No AI analysis provided for personalization")
+                return personalization
+            
+            print(f"🔍 Personalizing email with {len(ai_analysis)} chars of AI analysis")
             
             # Prompt Claude to extract the most relevant content for Wonder
             prompt = f"""
@@ -209,15 +216,20 @@ Do not include any other text or explanation - just the single sentence.
             )
             
             extracted_mention = message.content[0].text.strip()
+            print(f"🎯 LLM generated personalization: '{extracted_mention}'")
             
-            # Validate the response
+            # More lenient validation - just check it's reasonable
             if (extracted_mention and 
-                len(extracted_mention) < 150 and 
-                any(start in extracted_mention.lower() for start in ['i love', 'your content', 'i particularly', 'your authentic']) and
-                not any(avoid in extracted_mention.lower() for avoid in ['sorry', 'cannot', 'unable', 'error'])):
+                len(extracted_mention) < 200 and 
+                len(extracted_mention) > 10 and
+                not any(avoid in extracted_mention.lower() for avoid in ['sorry', 'cannot', 'unable', 'error', 'i apologize'])):
                 personalization['specific_post_mention'] = extracted_mention
+                print(f"✅ Using personalized mention: '{extracted_mention}'")
+            else:
+                print(f"❌ Rejected personalization, using default")
             
         except Exception as e:
+            print(f"❌ LLM personalization failed: {e}")
             # If LLM extraction fails, fall back to default
             pass
         
@@ -445,6 +457,22 @@ def render_email_outreach_section(app, current_campaign=None):
                     # Fallback to legacy reviews
                     if not ai_analysis and hasattr(app, 'reviews') and username in app.reviews:
                         ai_analysis = app.reviews[username].get('analysis', '')
+                    
+                    
+                    # Additional fallback - try common campaign names if available
+                    if not ai_analysis:
+                        common_campaigns = ["wonder_fall2025", "wonder_2025", "default"]
+                        for campaign in common_campaigns:
+                            try:
+                                cached_analysis = app.ai_cache.get_cached_analysis(username, campaign)
+                                if cached_analysis and cached_analysis.get('analysis'):
+                                    ai_analysis = cached_analysis.get('analysis', '')
+                                    break
+                            except:
+                                continue
+                    
+                    if not ai_analysis:
+                        st.warning(f"❌ No AI analysis found for @{username} - using generic personalization")
                     
                     # Generate email (will use cache if available)
                     draft = email_manager.generate_personalized_email(
