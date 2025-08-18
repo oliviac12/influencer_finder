@@ -371,12 +371,17 @@ def render_email_outreach_section(app, current_campaign=None):
         
         attachment_path = None
         if media_kit:
-            # Save uploaded file temporarily
-            temp_dir = "temp_attachments"
-            os.makedirs(temp_dir, exist_ok=True)
-            attachment_path = os.path.join(temp_dir, media_kit.name)
+            # Save uploaded file to shared directory for cross-platform access
+            shared_dir = "shared_attachments"
+            os.makedirs(shared_dir, exist_ok=True)
+            # Use timestamp to avoid filename conflicts
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            safe_filename = f"{timestamp}_{media_kit.name}"
+            attachment_path = os.path.join(shared_dir, safe_filename)
             with open(attachment_path, "wb") as f:
                 f.write(media_kit.getbuffer())
+            st.success(f"📎 Attachment ready: {safe_filename}")
     
     # Get creators with emails
     creators_with_emails = []
