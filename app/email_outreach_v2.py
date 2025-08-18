@@ -392,36 +392,11 @@ def render_email_outreach_section(app, current_campaign=None):
     # Main action: Generate all drafts
     st.subheader("📝 Email Drafts")
     
-    # Show cache info and inspection
+    # Show cache info briefly
     cache_stats = email_manager.draft_cache.get_stats()
-    if cache_stats['total_drafts'] > 0:
-        campaign_drafts = cache_stats['campaigns'].get(current_campaign or "default", 0)
-        if campaign_drafts > 0:
-            st.info(f"💾 Using {campaign_drafts} cached drafts for this campaign (saves LLM calls)")
-        
-        # Cache inspection
-        with st.expander("🔍 Cache Inspector (Debug)"):
-            st.write(f"**Total cached drafts:** {cache_stats['total_drafts']}")
-            st.write(f"**Campaigns in cache:** {list(cache_stats['campaigns'].keys())}")
-            st.write(f"**Current campaign:** `{current_campaign}`")
-            st.write(f"**Template:** Brand Collaboration")
-            
-            # Show actual cache keys
-            cache_data = email_manager.draft_cache.load_cache()
-            st.write(f"**Sample cache keys:**")
-            for i, key in enumerate(list(cache_data.keys())[:10]):
-                st.write(f"  {i+1}. `{key}`")
-            if len(cache_data) > 10:
-                st.write(f"  ... and {len(cache_data) - 10} more")
-            
-            # Show what keys we're looking for
-            if creators_with_emails:
-                st.write(f"**Looking for keys like:**")
-                sample_username = creators_with_emails[0][0]
-                expected_key = f"{current_campaign or 'default'}_{sample_username}"
-                st.write(f"  `{expected_key}`")
-    else:
-        st.warning("⚠️ No cached drafts found")
+    campaign_drafts = cache_stats['campaigns'].get(current_campaign or "default", 0)
+    if campaign_drafts > 0:
+        st.info(f"💾 Found {campaign_drafts} cached drafts for this campaign")
     
     # Check if drafts already exist in session state or persistent cache
     if f"email_drafts_{current_campaign}" not in st.session_state:
@@ -437,16 +412,9 @@ def render_email_outreach_section(app, current_campaign=None):
             else:
                 debug_info.append(f"❌ {username} (key: {cache_key})")
         
-        # Show debug info for troubleshooting
-        if len(creators_with_emails) <= 10:  # Only show for small lists
-            st.write("**Debug - Cache Status:**")
-            for info in debug_info[:5]:  # Show first 5
-                st.write(f"  {info}")
-            if len(debug_info) > 5:
-                st.write(f"  ... and {len(debug_info) - 5} more")
         
-        # If most drafts are cached, load them instead of regenerating
-        if cached_drafts_available >= len(creators_with_emails) * 0.8:  # 80% cached
+        # If we have any cached drafts, load them instead of regenerating
+        if cached_drafts_available > 0:
             with st.spinner(f"Loading {cached_drafts_available} cached email drafts..."):
                 all_drafts = []
                 for username, creator_data in creators_with_emails:
