@@ -53,15 +53,41 @@ class SupabaseEmailScheduler:
             return []
     
     def mark_as_sent(self, email_id: int):
-        """Mark email as sent"""
+        """Mark email as sent and create permanent record"""
         try:
+            sent_time = datetime.now(self.timezone).isoformat()
+            
+            # Get the original email data
+            scheduled_email = self.supabase.table('scheduled_emails')\
+                .select('*')\
+                .eq('id', email_id)\
+                .execute()
+            
+            if scheduled_email.data:
+                email_data = scheduled_email.data[0]
+                
+                # Create permanent record in sent_emails table
+                self.supabase.table('sent_emails').insert({
+                    'email_id': email_data.get('email_id'),
+                    'username': email_data.get('username'),
+                    'campaign': email_data.get('campaign'),
+                    'to_email': email_data.get('to_email'),
+                    'subject': email_data.get('subject'),
+                    'body': email_data.get('body'),
+                    'scheduled_time': email_data.get('scheduled_time'),
+                    'sent_at': sent_time,
+                    'attachment_path': email_data.get('attachment_path')
+                }).execute()
+            
+            # Update scheduled_emails status
             self.supabase.table('scheduled_emails')\
                 .update({
                     'status': 'sent',
-                    'sent_at': datetime.now(self.timezone).isoformat()
+                    'sent_at': sent_time
                 })\
                 .eq('id', email_id)\
                 .execute()
+                
             print(f"✅ Marked email {email_id} as sent")
         except Exception as e:
             print(f"❌ Error marking email as sent: {e}")
