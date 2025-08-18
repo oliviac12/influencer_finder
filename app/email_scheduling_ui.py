@@ -262,8 +262,140 @@ def render_scheduling_section(email_manager, drafts, current_campaign, attachmen
     with tab3:
         st.write("**🎯 Quick Schedule Options**")
         
-        # Add test scheduling section
-        with st.expander("🧪 Test Scheduling (Send to yourself)"):
+        # Add creator test batch section
+        with st.expander("🧪 Test Email Batch (Pick creators + test emails)"):
+            st.write("Send real emails from selected creators to your test addresses")
+            
+            # Get creators with emails for this campaign
+            creators_with_emails = []
+            if current_campaign and current_campaign != "➕ Create New Campaign":
+                # Get from campaign-specific human review cache
+                campaign_reviews = app.human_cache.get_campaign_reviews(current_campaign)
+                approved_creators = [
+                    r['username'] for r in campaign_reviews
+                    if r['decision'] in ['approved', 'maybe']
+                ]
+                
+                for username in approved_creators:
+                    creator_data = app.content_db.get_creator_content(username)
+                    if creator_data and creator_data['profile'].get('email'):
+                        creators_with_emails.append((username, creator_data))
+            
+            if creators_with_emails:
+                st.write(f"**Available creators with emails:** {len(creators_with_emails)}")
+                
+                # Creator selection
+                creator_options = [(f"@{username} ({data['profile'].get('nickname', username)}) → {data['profile'].get('email', '')}", username) 
+                                 for username, data in creators_with_emails[:10]]  # Show first 10
+                
+                selected_creators = st.multiselect(
+                    "Select creators for test (max 6):",
+                    options=creator_options,
+                    format_func=lambda x: x[0],
+                    max_selections=6,
+                    key="test_creators_select"
+                )
+                
+                # Test email addresses
+                test_emails_input = st.text_area(
+                    "Enter test email addresses (one per line):",
+                    placeholder="your.email@gmail.com\ncolleague@company.com\ntest@example.com",
+                    key="test_emails_input"
+                )
+                
+                # Parse test emails
+                test_emails = [email.strip() for email in test_emails_input.split('\n') if email.strip() and '@' in email.strip()]
+                
+                if selected_creators and test_emails:
+                    st.info(f"Will send {len(selected_creators)} test emails to {len(test_emails)} addresses = {len(selected_creators) * len(test_emails)} total emails")
+                    
+                    # Time selection
+                    test_col1, test_col2 = st.columns(2)
+                    
+                    with test_col1:
+                        test_hours = st.selectbox(
+                            "Send in how many hours?",
+                            options=[1, 2, 3, 4, 5, 6],
+                            index=3,  # Default to 4 hours
+                            key="test_hours_select"
+                        )
+                    
+                    with test_col2:
+                        send_time = datetime.now(pacific_tz) + timedelta(hours=test_hours)
+                        st.info(f"Will send at: {send_time.strftime('%I:%M %p PT')} ({test_hours}h from now)")
+                    
+                    if st.button("🚀 Schedule Test Batch", type="primary", key="schedule_test_batch"):
+                        with st.spinner("Scheduling test emails..."):
+                            scheduled_count = 0
+                            
+                            for creator_info, username in selected_creators:
+                                # Get creator data
+                                creator_data = app.content_db.get_creator_content(username)
+                                if not creator_data:
+                                    continue
+                                
+                                # Get AI analysis for personalization
+                                ai_analysis = ""
+                                if current_campaign and current_campaign != "➕ Create New Campaign":
+                                    cached_analysis = app.ai_cache.get_cached_analysis(username, current_campaign)
+                                    if cached_analysis:
+                                        ai_analysis = cached_analysis.get('analysis', '')
+                                
+                                # Generate email draft
+                                draft = email_manager.generate_personalized_email(
+                                    creator_data,
+                                    ai_analysis,
+                                    template_choice,
+                                    f"TEST_{current_campaign or 'default'}",
+                                    username=username,
+                                    use_cache=True
+                                )
+                                
+                                # Apply brand/name replacements
+                                test_subject = f"[TEST] {draft['subject'].replace('[BRAND_NAME]', brand_name)}"
+                                test_body = draft['body'].replace('[BRAND_NAME]', brand_name).replace('[YOUR_NAME]', your_name)
+                                test_body = f"🧪 TEST EMAIL - This is a test of the scheduling system\n\n{test_body}\n\n---\nOriginal recipient: {draft['to_email']}\nTest scheduled at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S PT')}"
+                                
+                                # Schedule to each test email
+                                for test_email in test_emails:
+                                    schedule_id = scheduler.schedule_email(
+                                        email_id=f"test_{username}_{datetime.now().timestamp()}",
+                                        username=f"test_{username}",
+                                        campaign=f"TEST_{current_campaign or 'default'}",
+                                        to_email=test_email,
+                                        subject=test_subject,
+                                        body=test_body,
+                                        scheduled_time=send_time,
+                                        attachment_path=attachment_path
+                                    )
+                                    if schedule_id:
+                                        scheduled_count += 1
+                            
+                            st.success(f"✅ Scheduled {scheduled_count} test emails!")
+                            st.balloons()
+                            
+                            # Show what was scheduled
+                            st.info(f"""
+                            **Test Details:**
+                            - **Creators:** {', '.join([f'@{u}' for _, u in selected_creators])}
+                            - **Test emails:** {', '.join(test_emails)}
+                            - **Send time:** {send_time.strftime('%I:%M %p PT')} ({test_hours}h from now)
+                            - **Campaign:** TEST_{current_campaign or 'default'}
+                            - **Total emails:** {scheduled_count}
+                            
+                            Monitor at: https://tracking.unsettled.xyz/dashboard
+                            """)
+                
+                else:
+                    if not selected_creators:
+                        st.warning("Select some creators to test")
+                    if not test_emails:
+                        st.warning("Enter test email addresses")
+            else:
+                st.warning("No creators with emails found in this campaign")
+        
+        # Add single test scheduling section
+        with st.expander("🧪 Single Test Email (Send to yourself)"):
             st.write("Test the scheduling system by sending a test email to yourself")
             
             test_col1, test_col2, test_col3 = st.columns(3)
