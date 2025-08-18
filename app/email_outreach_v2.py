@@ -19,8 +19,16 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.email_tracking_integration import EmailTrackingManager
-from utils.email_draft_cache import EmailDraftCache
 from email_scheduling_ui import render_scheduling_section
+
+# Try to import Supabase cache first, fallback to file cache
+try:
+    from utils.supabase_email_draft_cache import SupabaseEmailDraftCache
+    SUPABASE_AVAILABLE = True
+except ImportError:
+    SUPABASE_AVAILABLE = False
+
+from utils.email_draft_cache import EmailDraftCache
 
 load_dotenv()
 
@@ -29,7 +37,20 @@ class EmailOutreachManager:
     def __init__(self):
         self.email_template = self.get_email_template()
         self.sent_status = self.load_sent_status()
-        self.draft_cache = EmailDraftCache()
+        
+        # Initialize draft cache - prefer Supabase if available
+        self.use_supabase = False
+        if SUPABASE_AVAILABLE:
+            try:
+                self.draft_cache = SupabaseEmailDraftCache()
+                self.use_supabase = True
+                print("✅ Using Supabase email draft cache")
+            except Exception as e:
+                print(f"⚠️  Supabase cache failed, falling back to file cache: {str(e)}")
+                self.draft_cache = EmailDraftCache()
+        else:
+            self.draft_cache = EmailDraftCache()
+            print("📁 Using file-based email draft cache")
         
     def get_email_template(self):
         """Get the single email template for brand collaboration"""
@@ -387,7 +408,8 @@ def render_email_outreach_section(app, current_campaign=None):
     cache_stats = email_manager.draft_cache.get_stats()
     campaign_drafts = cache_stats['campaigns'].get(current_campaign or "default", 0)
     if campaign_drafts > 0:
-        st.info(f"💾 Found {campaign_drafts} cached drafts for this campaign")
+        cache_type = "Supabase" if email_manager.use_supabase else "local file"
+        st.info(f"💾 Found {campaign_drafts} cached drafts for this campaign ({cache_type} cache)")
     
     # Check if drafts already exist in session state or persistent cache
     if f"email_drafts_{current_campaign}" not in st.session_state:
