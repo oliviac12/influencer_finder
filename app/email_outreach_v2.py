@@ -48,6 +48,32 @@ class EmailOutreachManager:
                 supabase_url = os.getenv('SUPABASE_URL')
                 supabase_key = os.getenv('SUPABASE_ANON_KEY')
                 
+                # Debug: Print what we're getting (remove after testing)
+                print(f"🔍 EmailOutreachManager env check:")
+                print(f"  SUPABASE_URL: {'SET' if supabase_url else 'NOT SET'}")
+                print(f"  SUPABASE_ANON_KEY: {'SET' if supabase_key else 'NOT SET'}")
+                print(f"  URL length: {len(supabase_url) if supabase_url else 0}")
+                print(f"  Key length: {len(supabase_key) if supabase_key else 0}")
+                
+                # Check if it's a Streamlit secrets issue
+                if not supabase_url or not supabase_key:
+                    try:
+                        import streamlit as st
+                        if hasattr(st, 'secrets'):
+                            url_in_secrets = st.secrets.get('SUPABASE_URL')
+                            key_in_secrets = st.secrets.get('SUPABASE_ANON_KEY')
+                            print(f"  Streamlit secrets check:")
+                            print(f"    SUPABASE_URL in st.secrets: {'SET' if url_in_secrets else 'NOT SET'}")
+                            print(f"    SUPABASE_ANON_KEY in st.secrets: {'SET' if key_in_secrets else 'NOT SET'}")
+                            
+                            # Try using Streamlit secrets if env vars not available
+                            if url_in_secrets and key_in_secrets:
+                                supabase_url = url_in_secrets
+                                supabase_key = key_in_secrets
+                                print("  Using Streamlit secrets instead of env vars")
+                    except Exception as e:
+                        print(f"  Could not check Streamlit secrets: {e}")
+                
                 if supabase_url and supabase_key:
                     self.draft_cache = SupabaseEmailDraftCache()
                     self.use_supabase = True
