@@ -374,14 +374,13 @@ def render_email_outreach_section(app, current_campaign=None):
             # Save uploaded file to shared directory for cross-platform access
             shared_dir = "shared_attachments"
             os.makedirs(shared_dir, exist_ok=True)
-            # Use timestamp to avoid filename conflicts
-            from datetime import datetime
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            safe_filename = f"{timestamp}_{media_kit.name}"
+            # Use consistent filename that matches Replit
+            safe_filename = media_kit.name
             attachment_path = os.path.join(shared_dir, safe_filename)
             with open(attachment_path, "wb") as f:
                 f.write(media_kit.getbuffer())
             st.success(f"📎 Attachment ready: {safe_filename}")
+            st.info(f"🔗 Ensure this file exists on Replit: `{attachment_path}`")
     
     # Get creators with emails
     creators_with_emails = []
