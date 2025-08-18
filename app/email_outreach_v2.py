@@ -514,6 +514,11 @@ def render_email_outreach_section(app, current_campaign=None):
     if f"email_drafts_{current_campaign}" in st.session_state:
         drafts = st.session_state[f"email_drafts_{current_campaign}"]
         
+        # Pre-calculate sent status for all drafts to avoid repeated lookups
+        sent_status = {}
+        for draft in drafts:
+            sent_status[draft['username']] = email_manager.is_sent(draft['username'], current_campaign or "default")
+        
         # Filter and sort options
         col_filter1, col_filter2, col_filter3, col_filter4 = st.columns(4)
         with col_filter1:
@@ -522,8 +527,7 @@ def render_email_outreach_section(app, current_campaign=None):
             sort_by = st.selectbox("Sort by", ["Username", "Followers", "Sent Status"])
         with col_filter3:
             # Bulk send button
-            unsent_drafts = [d for d in drafts 
-                           if not email_manager.is_sent(d['username'], current_campaign or "default")]
+            unsent_drafts = [d for d in drafts if not sent_status[d['username']]]
             if st.button(f"📤 Send All ({len(unsent_drafts)})", 
                         disabled=len(unsent_drafts) == 0,
                         type="primary"):
@@ -582,20 +586,18 @@ def render_email_outreach_section(app, current_campaign=None):
                     del st.session_state['bulk_send_confirm']
                     st.rerun()
         
-        # Filter drafts
+        # Filter drafts using cached sent status
         filtered_drafts = drafts.copy()
         if show_sent == "Unsent Only":
-            filtered_drafts = [d for d in filtered_drafts 
-                             if not email_manager.is_sent(d['username'], current_campaign or "default")]
+            filtered_drafts = [d for d in filtered_drafts if not sent_status[d['username']]]
         elif show_sent == "Sent Only":
-            filtered_drafts = [d for d in filtered_drafts 
-                             if email_manager.is_sent(d['username'], current_campaign or "default")]
+            filtered_drafts = [d for d in filtered_drafts if sent_status[d['username']]]
         
-        # Sort drafts
+        # Sort drafts using cached sent status
         if sort_by == "Followers":
             filtered_drafts.sort(key=lambda x: x.get('followers', 0), reverse=True)
         elif sort_by == "Sent Status":
-            filtered_drafts.sort(key=lambda x: email_manager.is_sent(x['username'], current_campaign or "default"))
+            filtered_drafts.sort(key=lambda x: sent_status[x['username']])
         else:
             filtered_drafts.sort(key=lambda x: x['username'])
         
@@ -603,7 +605,7 @@ def render_email_outreach_section(app, current_campaign=None):
         
         # Display each draft as an expandable card
         for draft in filtered_drafts:
-            is_sent = email_manager.is_sent(draft['username'], current_campaign or "default")
+            is_sent = sent_status[draft['username']]
             status_icon = "✅" if is_sent else "📧"
             status_text = "SENT" if is_sent else "DRAFT"
             
