@@ -10,7 +10,10 @@ from zoneinfo import ZoneInfo
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from utils.email_scheduler import EmailScheduler
+try:
+    from utils.supabase_scheduler import SupabaseEmailScheduler as EmailScheduler
+except ImportError:
+    from utils.email_scheduler import EmailScheduler
 
 
 def render_scheduling_section(email_manager, drafts, current_campaign, attachment_path=None):
