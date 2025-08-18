@@ -20,7 +20,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.email_tracking_integration import EmailTrackingManager
 from utils.email_draft_cache import EmailDraftCache
-from email_scheduling_ui import render_scheduling_section, start_email_scheduler
+from email_scheduling_ui import render_scheduling_section
 
 load_dotenv()
 
@@ -672,6 +672,5 @@ def render_email_outreach_section(app, current_campaign=None):
         st.divider()
         render_scheduling_section(email_manager, drafts, current_campaign, attachment_path)
         
-        # Start scheduler if not already running (silently in background)
-        if 'email_scheduler' not in st.session_state:
-            st.session_state['email_scheduler'] = start_email_scheduler(email_manager)
+        # Note: With Supabase deployment, scheduling is handled by Replit
+        # No need to start background scheduler in Streamlit
