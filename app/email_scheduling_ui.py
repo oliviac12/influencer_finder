@@ -345,7 +345,6 @@ def render_scheduling_section(email_manager, drafts, current_campaign, attachmen
                                 draft = email_manager.generate_personalized_email(
                                     creator_data,
                                     ai_analysis,
-                                    template_choice,
                                     f"TEST_{current_campaign or 'default'}",
                                     username=username,
                                     use_cache=True
