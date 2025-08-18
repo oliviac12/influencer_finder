@@ -40,17 +40,32 @@ class EmailOutreachManager:
         
         # Initialize draft cache - prefer Supabase if available
         self.use_supabase = False
+        self.cache_status = "unknown"
+        
         if SUPABASE_AVAILABLE:
             try:
-                self.draft_cache = SupabaseEmailDraftCache()
-                self.use_supabase = True
-                print("✅ Using Supabase email draft cache")
+                # Check if Supabase environment variables are set
+                supabase_url = os.getenv('SUPABASE_URL')
+                supabase_key = os.getenv('SUPABASE_ANON_KEY')
+                
+                if supabase_url and supabase_key:
+                    self.draft_cache = SupabaseEmailDraftCache()
+                    self.use_supabase = True
+                    self.cache_status = "supabase"
+                    print("✅ Using Supabase email draft cache (persistent)")
+                else:
+                    self.draft_cache = EmailDraftCache()
+                    self.cache_status = "file_no_supabase_creds"
+                    print("⚠️  Supabase credentials not found, using file cache")
+                    
             except Exception as e:
-                print(f"⚠️  Supabase cache failed, falling back to file cache: {str(e)}")
                 self.draft_cache = EmailDraftCache()
+                self.cache_status = "file_supabase_error"
+                print(f"⚠️  Supabase cache failed, falling back to file cache: {str(e)}")
         else:
             self.draft_cache = EmailDraftCache()
-            print("📁 Using file-based email draft cache")
+            self.cache_status = "file_no_supabase_module"
+            print("📁 Using file-based email draft cache (Supabase module not available)")
         
     def get_email_template(self):
         """Get the single email template for brand collaboration"""
@@ -404,12 +419,26 @@ def render_email_outreach_section(app, current_campaign=None):
     # Main action: Generate all drafts
     st.subheader("📝 Email Drafts")
     
-    # Show cache info briefly
+    # Show cache info and status
     cache_stats = email_manager.draft_cache.get_stats()
     campaign_drafts = cache_stats['campaigns'].get(current_campaign or "default", 0)
-    if campaign_drafts > 0:
-        cache_type = "Supabase" if email_manager.use_supabase else "local file"
-        st.info(f"💾 Found {campaign_drafts} cached drafts for this campaign ({cache_type} cache)")
+    
+    # Cache status indicator
+    cache_col1, cache_col2 = st.columns([2, 1])
+    with cache_col1:
+        if campaign_drafts > 0:
+            cache_type = "Supabase" if email_manager.use_supabase else "local file"
+            st.info(f"💾 Found {campaign_drafts} cached drafts for this campaign ({cache_type} cache)")
+    
+    with cache_col2:
+        if email_manager.cache_status == "supabase":
+            st.success("☁️ Supabase Cache")
+        elif email_manager.cache_status == "file_no_supabase_creds":
+            st.warning("📁 File Cache (No Credentials)")
+        elif email_manager.cache_status == "file_supabase_error":
+            st.error("📁 File Cache (Supabase Error)")
+        else:
+            st.info("📁 File Cache")
     
     # Check if drafts already exist in session state or persistent cache
     if f"email_drafts_{current_campaign}" not in st.session_state:
@@ -726,7 +755,7 @@ def render_email_outreach_section(app, current_campaign=None):
         
         # Export options
         st.subheader("📥 Export")
-        col_export1, col_export2 = st.columns(2)
+        col_export1, col_export2, col_export3 = st.columns(3)
         
         with col_export1:
             # Export as JSON
@@ -758,6 +787,45 @@ def render_email_outreach_section(app, current_campaign=None):
                 file_name=f"{current_campaign}_email_drafts_{datetime.now().strftime('%Y%m%d')}.csv",
                 mime="text/csv"
             )
+        
+        with col_export3:
+            # Export cache data for migration
+            try:
+                # Get raw cache data for Supabase migration
+                if hasattr(email_manager.draft_cache, 'cache'):
+                    # File-based cache
+                    cache_data = email_manager.draft_cache.cache
+                else:
+                    # Supabase cache - get all drafts
+                    all_drafts = email_manager.draft_cache.get_campaign_drafts(current_campaign or "default")
+                    cache_data = {}
+                    for draft in all_drafts:
+                        cache_key = f"{draft['campaign']}_{draft['username']}"
+                        cache_data[cache_key] = draft
+                
+                cache_export = json.dumps(cache_data, indent=2)
+                st.download_button(
+                    label="💾 Download Cache Data",
+                    data=cache_export,
+                    file_name=f"email_cache_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                    mime="application/json",
+                    help="Download raw cache data for migration to Supabase"
+                )
+                
+                if cache_data:
+                    st.caption(f"📊 {len(cache_data)} cached drafts")
+                else:
+                    st.caption("📭 No cache data found")
+                    
+            except Exception as e:
+                st.error(f"❌ Cache export error: {str(e)}")
+                st.download_button(
+                    label="💾 Download Cache Data",
+                    data="{}",
+                    file_name="empty_cache.json",
+                    mime="application/json",
+                    disabled=True
+                )
         
         # Add scheduling section
         st.divider()
