@@ -57,7 +57,7 @@ def track_open():
         user_agent = request.headers.get('User-Agent', '')
         timestamp = datetime.now().isoformat()
         
-        # Log the open event
+        # Log the open event to local SQLite
         log_email_open(
             email_id=email_id,
             campaign=campaign,
@@ -65,6 +65,19 @@ def track_open():
             user_agent=user_agent,
             timestamp=timestamp
         )
+        
+        # Also log to Supabase for dashboard analytics
+        try:
+            supabase = get_supabase()
+            supabase.table('email_opens').insert({
+                'email_id': email_id,
+                'campaign': campaign,
+                'ip_address': ip_address,
+                'user_agent': user_agent,
+                'opened_at': timestamp
+            }).execute()
+        except Exception as e:
+            print(f"Error logging open to Supabase: {e}")
         
         # Return 1x1 transparent pixel
         return send_file(
@@ -246,9 +259,10 @@ def supabase_dashboard():
     try:
         supabase = get_supabase()
         
-        # Get counts from both tables
+        # Get counts from all tables
         scheduled = supabase.table('scheduled_emails').select('id', count='exact').execute()
         sent = supabase.table('sent_emails').select('id', count='exact').execute()
+        opens = supabase.table('email_opens').select('id', count='exact').execute()
         
         # Get pending emails
         pending = supabase.table('scheduled_emails')\
@@ -262,12 +276,23 @@ def supabase_dashboard():
             .eq('status', 'failed')\
             .execute()
         
-        # Get today's sent emails
+        # Get today's stats
         today = datetime.now().date()
         today_sent = supabase.table('sent_emails')\
             .select('id', count='exact')\
             .gte('sent_at', f"{today}T00:00:00")\
             .lte('sent_at', f"{today}T23:59:59")\
+            .execute()
+        
+        today_opens = supabase.table('email_opens')\
+            .select('id', count='exact')\
+            .gte('opened_at', f"{today}T00:00:00")\
+            .lte('opened_at', f"{today}T23:59:59")\
+            .execute()
+        
+        # Get unique opens (distinct email_ids)
+        unique_opens = supabase.table('email_opens')\
+            .select('email_id', count='exact')\
             .execute()
         
         # Get next 5 scheduled emails
@@ -285,14 +310,24 @@ def supabase_dashboard():
             .limit(10)\
             .execute()
         
+        # Get recent opens
+        recent_opens = supabase.table('email_opens')\
+            .select('email_id, campaign, opened_at, ip_address')\
+            .order('opened_at', desc=True)\
+            .limit(10)\
+            .execute()
+        
         # Calculate stats
         total_scheduled = scheduled.count or 0
         total_sent = sent.count or 0
+        total_opens = opens.count or 0
         total_pending = pending.count or 0
         total_failed = failed.count or 0
         sent_today = today_sent.count or 0
+        opens_today = today_opens.count or 0
         
         success_rate = (total_sent / max(total_scheduled, 1)) * 100
+        open_rate = (total_opens / max(total_sent, 1)) * 100
         
         html = f"""
         <!DOCTYPE html>
@@ -338,6 +373,10 @@ def supabase_dashboard():
                         <div class="stat-label">Total Sent</div>
                     </div>
                     <div class="stat-card">
+                        <div class="stat-number" style="color: #8e44ad;">{total_opens}</div>
+                        <div class="stat-label">Total Opens</div>
+                    </div>
+                    <div class="stat-card">
                         <div class="stat-number pending">{total_pending}</div>
                         <div class="stat-label">Pending</div>
                     </div>
@@ -350,8 +389,16 @@ def supabase_dashboard():
                         <div class="stat-label">Sent Today</div>
                     </div>
                     <div class="stat-card">
+                        <div class="stat-number" style="color: #8e44ad;">{opens_today}</div>
+                        <div class="stat-label">Opens Today</div>
+                    </div>
+                    <div class="stat-card">
                         <div class="stat-number">{success_rate:.1f}%</div>
-                        <div class="stat-label">Success Rate</div>
+                        <div class="stat-label">Send Rate</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" style="color: #8e44ad;">{open_rate:.1f}%</div>
+                        <div class="stat-label">Open Rate</div>
                     </div>
                 </div>
                 
@@ -395,6 +442,30 @@ def supabase_dashboard():
         else:
             html += '<div class="email-item">No emails sent yet</div>'
         
+        html += """
+                    </div>
+                </div>
+                
+                <div class="section">
+                    <h2>👀 Recent Email Opens</h2>
+                    <div class="email-list">
+        """
+        
+        if recent_opens.data:
+            for open_event in recent_opens.data:
+                opened_time = datetime.fromisoformat(open_event['opened_at'].replace('Z', '+00:00'))
+                time_str = opened_time.strftime('%b %d, %I:%M %p')
+                # Extract location from IP (simplified)
+                location = open_event['ip_address'][:7] + "..." if open_event['ip_address'] else "Unknown"
+                html += f"""
+                        <div class="email-item">
+                            <strong>📧 {open_event['email_id']}</strong> 
+                            <div class="timestamp">👀 {time_str} • Campaign: {open_event['campaign']} • IP: {location}</div>
+                        </div>
+                """
+        else:
+            html += '<div class="email-item">No email opens yet</div>'
+        
         html += f"""
                     </div>
                 </div>
@@ -426,6 +497,12 @@ def morning_report():
             .select('*')\
             .gte('sent_at', f"{today}T00:00:00")\
             .lte('sent_at', f"{today}T23:59:59")\
+            .execute()
+        
+        today_opens = supabase.table('email_opens')\
+            .select('*')\
+            .gte('opened_at', f"{today}T00:00:00")\
+            .lte('opened_at', f"{today}T23:59:59")\
             .execute()
         
         # Get pending emails
@@ -473,6 +550,12 @@ def morning_report():
                 <div class="stat success">
                     <h3>✅ Emails Sent Today</h3>
                     <p><strong>{len(today_sent.data or [])}</strong> emails successfully delivered</p>
+                </div>
+                
+                <div class="stat" style="border-left-color: #8e44ad;">
+                    <h3>👀 Emails Opened Today</h3>
+                    <p><strong>{len(today_opens.data or [])}</strong> emails opened</p>
+                    <p><em>Open Rate: {(len(today_opens.data or []) / max(len(today_sent.data or []), 1)) * 100:.1f}%</em></p>
                 </div>
                 
                 <div class="stat warning">
