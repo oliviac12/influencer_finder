@@ -16,7 +16,7 @@ except ImportError:
     from utils.email_scheduler import EmailScheduler
 
 
-def render_scheduling_section(email_manager, drafts, current_campaign, attachment_path=None, app=None):
+def render_scheduling_section(email_manager, drafts, current_campaign, attachment_path=None, app=None, template_choice="generic", brand_name="Wonder", your_name="Olivia"):
     """Render email scheduling interface"""
     
     st.subheader("📅 Schedule Email Sending")

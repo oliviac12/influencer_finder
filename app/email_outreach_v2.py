@@ -670,7 +670,7 @@ def render_email_outreach_section(app, current_campaign=None):
         
         # Add scheduling section
         st.divider()
-        render_scheduling_section(email_manager, drafts, current_campaign, attachment_path, app)
+        render_scheduling_section(email_manager, drafts, current_campaign, attachment_path, app, template_choice, brand_name, your_name)
         
         # Note: With Supabase deployment, scheduling is handled by Replit
         # No need to start background scheduler in Streamlit
