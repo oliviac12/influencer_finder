@@ -60,10 +60,21 @@ class AIAnalysisCache:
             Cached analysis dict if valid, None otherwise
         """
         cache = self.load_cache()
+        
+        # Try new format first: username_campaignname
         cache_key = self.get_cache_key(username, campaign_name)
         
         if cache_key not in cache:
-            return None
+            # Try legacy format: username_{first_8_chars_of_campaign_brief_hash}
+            # Look for any cache entry for this username that might match
+            for key, cached_data in cache.items():
+                if key.startswith(f"{username}_") and cached_data.get('username') == username:
+                    # Found a legacy entry for this user, check if it's the right campaign
+                    # We can't perfectly match campaign names to brief hashes, so return the first valid one
+                    cache_key = key
+                    break
+            else:
+                return None
         
         cached_data = cache[cache_key]
         

@@ -29,20 +29,19 @@ class EmailDraftCache:
         with open(self.cache_file, 'w') as f:
             json.dump(self.cache, f, indent=2)
     
-    def get_cache_key(self, username: str, campaign: str, template: str) -> str:
+    def get_cache_key(self, username: str, campaign: str, template: str = None) -> str:
         """Generate unique cache key for a draft"""
-        return f"{campaign}_{template}_{username}"
+        return f"{campaign}_{username}"
     
-    def save_draft(self, username: str, campaign: str, template: str, 
-                   subject: str, body: str, email: str = None, 
+    def save_draft(self, username: str, campaign: str, template: str = None, 
+                   subject: str = None, body: str = None, email: str = None, 
                    personalization: str = None):
         """Save an email draft to cache"""
-        cache_key = self.get_cache_key(username, campaign, template)
+        cache_key = self.get_cache_key(username, campaign)
         
         self.cache[cache_key] = {
             'username': username,
             'campaign': campaign,
-            'template': template,
             'subject': subject,
             'body': body,
             'email': email,
@@ -53,23 +52,22 @@ class EmailDraftCache:
         
         self.save_cache()
     
-    def get_draft(self, username: str, campaign: str, template: str) -> Optional[Dict]:
+    def get_draft(self, username: str, campaign: str, template: str = None) -> Optional[Dict]:
         """Get cached draft if it exists"""
-        cache_key = self.get_cache_key(username, campaign, template)
+        cache_key = self.get_cache_key(username, campaign)
         return self.cache.get(cache_key)
     
-    def has_draft(self, username: str, campaign: str, template: str) -> bool:
+    def has_draft(self, username: str, campaign: str, template: str = None) -> bool:
         """Check if draft exists in cache"""
-        cache_key = self.get_cache_key(username, campaign, template)
+        cache_key = self.get_cache_key(username, campaign)
         return cache_key in self.cache
     
-    def get_campaign_drafts(self, campaign: str, template: str = None) -> List[Dict]:
+    def get_campaign_drafts(self, campaign: str) -> List[Dict]:
         """Get all drafts for a campaign"""
         drafts = []
         for key, draft in self.cache.items():
             if draft.get('campaign') == campaign:
-                if template is None or draft.get('template') == template:
-                    drafts.append(draft)
+                drafts.append(draft)
         return drafts
     
     def clear_campaign_drafts(self, campaign: str):
@@ -85,9 +83,9 @@ class EmailDraftCache:
         self.save_cache()
         return len(keys_to_remove)
     
-    def update_draft_body(self, username: str, campaign: str, template: str, new_body: str):
+    def update_draft_body(self, username: str, campaign: str, new_body: str, template: str = None):
         """Update just the body of a cached draft (for edits)"""
-        cache_key = self.get_cache_key(username, campaign, template)
+        cache_key = self.get_cache_key(username, campaign)
         if cache_key in self.cache:
             self.cache[cache_key]['body'] = new_body
             self.cache[cache_key]['edited_at'] = datetime.now().isoformat()
@@ -121,7 +119,6 @@ if __name__ == "__main__":
     cache.save_draft(
         username="testcreator",
         campaign="wonder_fall2025",
-        template="brand_collaboration",
         subject="Collaboration with Wonder",
         body="Hi there! I love your content...",
         email="test@example.com",
@@ -129,7 +126,7 @@ if __name__ == "__main__":
     )
     
     # Test retrieving
-    draft = cache.get_draft("testcreator", "wonder_fall2025", "brand_collaboration")
+    draft = cache.get_draft("testcreator", "wonder_fall2025")
     print(f"Retrieved draft: {draft}")
     
     # Show stats

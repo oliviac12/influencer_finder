@@ -314,10 +314,10 @@ Keep it under 100 words. Be specific and personal, not generic.
         return results
 
 def main():
-    # Add password protection
-    from auth import check_password
-    if not check_password():
-        return
+    # Add password protection (temporarily disabled for local testing)
+    # from auth import check_password
+    # if not check_password():
+    #     return
     
     st.title("🎯 Creator Review System")
     st.markdown("**Batch AI-powered creator analysis workflow**")

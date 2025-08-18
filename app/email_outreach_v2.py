@@ -27,22 +27,15 @@ load_dotenv()
 
 class EmailOutreachManager:
     def __init__(self):
-        self.email_templates = self.load_email_templates()
+        self.email_template = self.get_email_template()
         self.sent_status = self.load_sent_status()
         self.draft_cache = EmailDraftCache()
         
-    def load_email_templates(self):
-        """Load email templates or create defaults"""
-        templates_file = "email_templates.json"
-        if os.path.exists(templates_file):
-            with open(templates_file, 'r') as f:
-                return json.load(f)
-        else:
-            # Default templates
-            default_templates = {
-                "brand_collaboration": {
-                    "subject": "Collaboration Opportunity with [BRAND_NAME]",
-                    "body": """Hi {nickname}!
+    def get_email_template(self):
+        """Get the single email template for brand collaboration"""
+        return {
+            "subject": "Collaboration Opportunity with [BRAND_NAME]",
+            "body": """Hi {nickname}!
 
 I've been following your content on TikTok, and your content really aligns with [BRAND_NAME]'s values of choosing your own path and living permission-free. {specific_post_mention}
 
@@ -54,24 +47,7 @@ Let me know what you think!
 
 Best,
 [YOUR_NAME]"""
-                },
-                "generic": {
-                    "subject": "Partnership Opportunity - [BRAND_NAME]",
-                    "body": """Hi {nickname}!
-
-I've been following your content on TikTok, and your content really aligns with [BRAND_NAME]'s values of choosing your own path and living permission-free. {specific_post_mention}
-
-I'm reaching out on behalf of [BRAND_NAME], a design-focused luggage brand. At the moment, you may not NEED another carry-on, but this brand is quite unique - they position themselves as a travel companion for people who choose their own path, and are on their journey to become the person they want to be. That's why you popped into my head and thought you might be a good fit.
-
-With a bit more detail, I can see you're really a perfect fit for the brand. I've attached more information about [BRAND_NAME] and our collaboration opportunities for you to review.
-
-Are you interested in learning more?
-
-Best,
-[YOUR_NAME]"""
-                }
-            }
-            return default_templates
+        }
     
     def load_sent_status(self):
         """Load sent email status"""
@@ -102,14 +78,14 @@ Best,
         key = f"{campaign}_{username}"
         return key in self.sent_status
     
-    def generate_personalized_email(self, creator_data, ai_analysis, template_key="generic", campaign_brief="", 
+    def generate_personalized_email(self, creator_data, ai_analysis, campaign_brief="", 
                                    username=None, use_cache=True):
         """Generate a personalized email based on creator data and AI analysis"""
         profile = creator_data.get('profile', {})
         
         # Check cache first if username and campaign provided
         if use_cache and username and campaign_brief:
-            cached_draft = self.draft_cache.get_draft(username, campaign_brief, template_key)
+            cached_draft = self.draft_cache.get_draft(username, campaign_brief)
             if cached_draft:
                 return {
                     'subject': cached_draft['subject'],
@@ -126,7 +102,7 @@ Best,
         personalization = self._extract_personalization(ai_analysis, posts)
         
         # Get template
-        template = self.email_templates.get(template_key, self.email_templates['generic'])
+        template = self.email_template
         
         # Fill in the template
         email_body = template['body'].format(
@@ -140,7 +116,6 @@ Best,
             self.draft_cache.save_draft(
                 username=username,
                 campaign=campaign_brief,
-                template=template_key,
                 subject=template['subject'],
                 body=email_body,
                 email=profile.get('email', ''),
@@ -355,11 +330,8 @@ def render_email_outreach_section(app, current_campaign=None):
         your_name = st.text_input("Your Name", value="Olivia")
     
     with col2:
-        template_choice = st.selectbox(
-            "Email Template",
-            options=list(email_manager.email_templates.keys()),
-            format_func=lambda x: x.replace('_', ' ').title()
-        )
+        st.write("**Template:** Brand Collaboration")
+        st.caption("Simplified single template for all outreach")
     
     with col3:
         # Media Kit Upload
@@ -420,20 +392,58 @@ def render_email_outreach_section(app, current_campaign=None):
     # Main action: Generate all drafts
     st.subheader("📝 Email Drafts")
     
-    # Show cache info
+    # Show cache info and inspection
     cache_stats = email_manager.draft_cache.get_stats()
     if cache_stats['total_drafts'] > 0:
         campaign_drafts = cache_stats['campaigns'].get(current_campaign or "default", 0)
         if campaign_drafts > 0:
             st.info(f"💾 Using {campaign_drafts} cached drafts for this campaign (saves LLM calls)")
+        
+        # Cache inspection
+        with st.expander("🔍 Cache Inspector (Debug)"):
+            st.write(f"**Total cached drafts:** {cache_stats['total_drafts']}")
+            st.write(f"**Campaigns in cache:** {list(cache_stats['campaigns'].keys())}")
+            st.write(f"**Current campaign:** `{current_campaign}`")
+            st.write(f"**Template:** Brand Collaboration")
+            
+            # Show actual cache keys
+            cache_data = email_manager.draft_cache.load_cache()
+            st.write(f"**Sample cache keys:**")
+            for i, key in enumerate(list(cache_data.keys())[:10]):
+                st.write(f"  {i+1}. `{key}`")
+            if len(cache_data) > 10:
+                st.write(f"  ... and {len(cache_data) - 10} more")
+            
+            # Show what keys we're looking for
+            if creators_with_emails:
+                st.write(f"**Looking for keys like:**")
+                sample_username = creators_with_emails[0][0]
+                expected_key = f"{current_campaign or 'default'}_{sample_username}"
+                st.write(f"  `{expected_key}`")
+    else:
+        st.warning("⚠️ No cached drafts found")
     
     # Check if drafts already exist in session state or persistent cache
     if f"email_drafts_{current_campaign}" not in st.session_state:
         # Check if we have cached drafts for all creators
         cached_drafts_available = 0
+        debug_info = []
         for username, creator_data in creators_with_emails:
-            if email_manager.draft_cache.has_draft(username, current_campaign or "default", template_choice):
+            cache_key = f"{current_campaign or 'default'}_{username}"
+            has_cached = email_manager.draft_cache.has_draft(username, current_campaign or "default")
+            if has_cached:
                 cached_drafts_available += 1
+                debug_info.append(f"✅ {username}")
+            else:
+                debug_info.append(f"❌ {username} (key: {cache_key})")
+        
+        # Show debug info for troubleshooting
+        if len(creators_with_emails) <= 10:  # Only show for small lists
+            st.write("**Debug - Cache Status:**")
+            for info in debug_info[:5]:  # Show first 5
+                st.write(f"  {info}")
+            if len(debug_info) > 5:
+                st.write(f"  ... and {len(debug_info) - 5} more")
         
         # If most drafts are cached, load them instead of regenerating
         if cached_drafts_available >= len(creators_with_emails) * 0.8:  # 80% cached
@@ -446,7 +456,6 @@ def render_email_outreach_section(app, current_campaign=None):
                     draft = email_manager.generate_personalized_email(
                         creator_data,
                         "",  # No AI analysis needed for cached drafts
-                        template_choice,
                         current_campaign or "default",
                         username=username,
                         use_cache=True
@@ -482,7 +491,7 @@ def render_email_outreach_section(app, current_campaign=None):
                         creator_data['username'] = username
                         
                         # Check if we have a cached draft first
-                        cached = email_manager.draft_cache.has_draft(username, current_campaign or "default", template_choice)
+                        cached = email_manager.draft_cache.has_draft(username, current_campaign or "default")
                         
                         if cached:
                             status_text.text(f"Using cached draft for @{username}...")
@@ -522,7 +531,6 @@ def render_email_outreach_section(app, current_campaign=None):
                         draft = email_manager.generate_personalized_email(
                             creator_data,
                             ai_analysis,
-                            template_choice,
                             current_campaign or "default",
                             username=username,
                             use_cache=True
@@ -744,7 +752,7 @@ def render_email_outreach_section(app, current_campaign=None):
         
         # Add scheduling section
         st.divider()
-        render_scheduling_section(email_manager, drafts, current_campaign, attachment_path, app, template_choice, brand_name, your_name)
+        render_scheduling_section(email_manager, drafts, current_campaign, attachment_path, app, brand_name, your_name)
         
         # Note: With Supabase deployment, scheduling is handled by Replit
         # No need to start background scheduler in Streamlit
