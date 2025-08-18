@@ -427,9 +427,49 @@ def render_email_outreach_section(app, current_campaign=None):
         if campaign_drafts > 0:
             st.info(f"💾 Using {campaign_drafts} cached drafts for this campaign (saves LLM calls)")
     
-    # Check if drafts already exist in session state
+    # Check if drafts already exist in session state or persistent cache
     if f"email_drafts_{current_campaign}" not in st.session_state:
-        if st.button("🚀 Generate All Email Drafts", type="primary", disabled=not creators_with_emails):
+        # Check if we have cached drafts for all creators
+        cached_drafts_available = 0
+        for username, creator_data in creators_with_emails:
+            if email_manager.draft_cache.has_draft(username, current_campaign or "default", template_choice):
+                cached_drafts_available += 1
+        
+        # If most drafts are cached, load them instead of regenerating
+        if cached_drafts_available >= len(creators_with_emails) * 0.8:  # 80% cached
+            with st.spinner(f"Loading {cached_drafts_available} cached email drafts..."):
+                all_drafts = []
+                for username, creator_data in creators_with_emails:
+                    creator_data['username'] = username
+                    
+                    # Get cached draft
+                    draft = email_manager.generate_personalized_email(
+                        creator_data,
+                        "",  # No AI analysis needed for cached drafts
+                        template_choice,
+                        current_campaign or "default",
+                        username=username,
+                        use_cache=True
+                    )
+                    
+                    # Apply replacements
+                    draft['subject'] = draft['subject'].replace('[BRAND_NAME]', brand_name)
+                    draft['body'] = draft['body'].replace('[BRAND_NAME]', brand_name).replace('[YOUR_NAME]', your_name)
+                    draft['username'] = username
+                    draft['email'] = creator_data['profile'].get('email', '')
+                    draft['nickname'] = creator_data['profile'].get('nickname', username)
+                    draft['followers'] = creator_data['profile'].get('followers', 0)
+                    
+                    all_drafts.append(draft)
+                
+                st.session_state[f"email_drafts_{current_campaign}"] = all_drafts
+                st.success(f"✅ Loaded {len(all_drafts)} cached email drafts!")
+                st.rerun()
+        
+        # Only show generate button if drafts are missing
+        else:
+            missing_drafts = len(creators_with_emails) - cached_drafts_available
+            if st.button(f"🚀 Generate Email Drafts ({missing_drafts} new, {cached_drafts_available} cached)", type="primary", disabled=not creators_with_emails):
             with st.spinner("Generating personalized emails..."):
                 all_drafts = []
                 progress_bar = st.progress(0)
