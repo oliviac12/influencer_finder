@@ -36,25 +36,25 @@ class CreatorDataClient:
         """
         # Try preferred service first
         if self.prefer_brightdata:
-            print(f"   🌐 Trying Bright Data MCP for @{username}...")
+            pass  # Trying Bright Data MCP
             brightdata_result = self._get_brightdata_analysis(username, post_count)
             
             if brightdata_result['success']:
-                print(f"   ✅ Bright Data MCP success - got profile and {len(brightdata_result['posts'])} posts")
+                pass  # Bright Data MCP success
                 return brightdata_result
             else:
                 # Always fall back to TikAPI when Bright Data MCP fails, regardless of error type
-                print(f"   🔄 Bright Data failed ({brightdata_result['error']}), falling back to TikAPI...")
+                pass  # Bright Data failed, falling back to TikAPI
                 return self._try_tikapi_fallback(username, post_count)
         else:
             # TikAPI first, then Bright Data fallback
-            print(f"   🔥 Trying TikAPI for @{username}...")
+            pass  # Trying TikAPI
             tikapi_result = self._try_tikapi_fallback(username, post_count)
             
             if tikapi_result['success']:
                 return tikapi_result
             else:
-                print(f"   🔄 TikAPI failed ({tikapi_result['error']}), falling back to Bright Data...")
+                pass  # TikAPI failed, falling back to Bright Data
                 return self._get_brightdata_analysis(username, post_count)
     
     def _try_tikapi_fallback(self, username, post_count):
@@ -62,10 +62,10 @@ class CreatorDataClient:
         tikapi_result = self.tikapi.get_creator_analysis(username, post_count)
         
         if tikapi_result['success']:
-            print(f"   ✅ TikAPI success - got profile and {len(tikapi_result['posts'])} posts")
+            pass  # TikAPI success
             return tikapi_result
         else:
-            print(f"   ❌ TikAPI failed: {tikapi_result['error']}")
+            pass  # TikAPI failed
             return tikapi_result
     
     def _get_brightdata_analysis(self, username, post_count=35):

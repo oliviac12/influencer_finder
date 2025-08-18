@@ -217,9 +217,9 @@ class SimpleTikTokMCPClient:
         try:
             with open(cache_file, 'w', encoding='utf-8') as f:
                 json.dump(result, f, indent=2, ensure_ascii=False)
-            print(f"💾 Cached subtitles to: {cache_file}")
+            pass  # Cached subtitles successfully
         except Exception as e:
-            print(f"Warning: Failed to cache subtitles for {tiktok_url}: {e}")
+            pass  # Failed to cache subtitles
     
     def extract_subtitles(self, tiktok_url):
         """
@@ -228,10 +228,10 @@ class SimpleTikTokMCPClient:
         # Check cache first
         cached_result = self._load_cached_subtitles(tiktok_url)
         if cached_result:
-            print(f"📁 Using cached subtitles for {tiktok_url}")
+            pass  # Using cached subtitles
             return cached_result
         
-        print(f"🔄 Extracting subtitles from API for {tiktok_url}")
+        pass  # Extracting subtitles from API
         
         try:
             # Prepare MCP request as JSON-RPC

@@ -98,7 +98,7 @@ class ContentDatabase:
         # Save updated database
         self.save_database(db)
         
-        print(f"   💾 Saved content data for @{username}: {len(creator_content['posts'])} posts")
+        pass  # Saved content data successfully
     
     def get_creator_content(self, username: str) -> Optional[Dict]:
         """Get content data for a specific creator"""
