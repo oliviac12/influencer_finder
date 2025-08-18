@@ -143,14 +143,10 @@ Best,
             
             claude_api_key = os.getenv('ANTHROPIC_API_KEY')
             if not claude_api_key:
-                print("⚠️ No ANTHROPIC_API_KEY found for personalization")
                 return personalization
             
             if not ai_analysis:
-                print("⚠️ No AI analysis provided for personalization")
                 return personalization
-            
-            print(f"🔍 Personalizing email with {len(ai_analysis)} chars of AI analysis")
             
             # Prompt Claude to extract the most relevant content for Wonder
             prompt = f"""
@@ -191,7 +187,6 @@ Do not include any other text or explanation - just the single sentence.
             )
             
             extracted_mention = message.content[0].text.strip()
-            print(f"🎯 LLM generated personalization: '{extracted_mention}'")
             
             # More lenient validation - just check it's reasonable
             if (extracted_mention and 
@@ -199,12 +194,8 @@ Do not include any other text or explanation - just the single sentence.
                 len(extracted_mention) > 10 and
                 not any(avoid in extracted_mention.lower() for avoid in ['sorry', 'cannot', 'unable', 'error', 'i apologize'])):
                 personalization['specific_post_mention'] = extracted_mention
-                print(f"✅ Using personalized mention: '{extracted_mention}'")
-            else:
-                print(f"❌ Rejected personalization, using default")
             
         except Exception as e:
-            print(f"❌ LLM personalization failed: {e}")
             # If LLM extraction fails, fall back to default
             pass
         
