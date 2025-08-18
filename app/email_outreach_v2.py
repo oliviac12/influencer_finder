@@ -444,14 +444,14 @@ def render_email_outreach_section(app, current_campaign=None):
                 button_text = f"🚀 Generate Drafts ({missing_drafts} new, {cached_drafts_available} cached)"
             
             if st.button(button_text, type="primary", disabled=not creators_with_emails):
-            if cached_drafts_available == 0:
-                spinner_text = "Generating personalized emails..."
-            elif missing_drafts == 0:
-                spinner_text = "Loading cached email drafts..."
-            else:
-                spinner_text = f"Loading {cached_drafts_available} cached + generating {missing_drafts} new drafts..."
-            
-            with st.spinner(spinner_text):
+                if cached_drafts_available == 0:
+                    spinner_text = "Generating personalized emails..."
+                elif missing_drafts == 0:
+                    spinner_text = "Loading cached email drafts..."
+                else:
+                    spinner_text = f"Loading {cached_drafts_available} cached + generating {missing_drafts} new drafts..."
+                
+                with st.spinner(spinner_text):
                 all_drafts = []
                 progress_bar = st.progress(0)
                 status_text = st.empty()
