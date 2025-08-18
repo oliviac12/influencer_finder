@@ -444,15 +444,12 @@ def render_email_outreach_section(app, current_campaign=None):
     if f"email_drafts_{current_campaign}" not in st.session_state:
         # Check if we have cached drafts for all creators
         cached_drafts_available = 0
-        debug_info = []
+        
+        
         for username, creator_data in creators_with_emails:
-            cache_key = f"{current_campaign or 'default'}_{username}"
             has_cached = email_manager.draft_cache.has_draft(username, current_campaign or "default")
             if has_cached:
                 cached_drafts_available += 1
-                debug_info.append(f"✅ {username}")
-            else:
-                debug_info.append(f"❌ {username} (key: {cache_key})")
         
         
         # Auto-load cached drafts if all are available, otherwise show generate button
