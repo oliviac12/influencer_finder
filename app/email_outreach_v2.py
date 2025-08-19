@@ -671,7 +671,9 @@ def render_email_outreach_section(app, current_campaign=None):
         if sent_status_key not in st.session_state:
             st.session_state[sent_status_key] = {}
             for draft in drafts:
-                st.session_state[sent_status_key][draft['username']] = email_manager.is_sent(draft['username'], current_campaign or "default")
+                username = draft.get('username')
+                if username:
+                    st.session_state[sent_status_key][username] = email_manager.is_sent(username, current_campaign or "default")
         
         sent_status = st.session_state[sent_status_key]
         
@@ -682,8 +684,8 @@ def render_email_outreach_section(app, current_campaign=None):
         with col_filter2:
             sort_by = st.selectbox("Sort by", ["Username", "Followers", "Sent Status"])
         with col_filter3:
-            # Bulk send button
-            unsent_drafts = [d for d in drafts if not sent_status[d['username']]]
+            # Bulk send button - safely check username and sent status
+            unsent_drafts = [d for d in drafts if d.get('username') and not sent_status.get(d.get('username'), False)]
             if st.button(f"📤 Send All ({len(unsent_drafts)})", 
                         disabled=len(unsent_drafts) == 0,
                         type="primary"):
@@ -738,19 +740,20 @@ def render_email_outreach_section(app, current_campaign=None):
                     status = st.empty()
                     
                     for idx, draft in enumerate(unsent_drafts):
-                        status.text(f"Sending to @{draft['username']}...")
+                        draft_username = draft.get('username', 'unknown')
+                        status.text(f"Sending to @{draft_username}...")
                         success, msg = email_manager.send_email(
                             draft['email'],
                             draft['subject'],
                             draft['body'],
                             attachment_path=attachment_path,
-                            username=draft['username'],
+                            username=draft_username,
                             campaign=current_campaign or "default"
                         )
                         if success:
                             success_count += 1
                         else:
-                            failed.append(f"@{draft['username']}: {msg}")
+                            failed.append(f"@{draft_username}: {msg}")
                         
                         progress.progress((idx + 1) / len(unsent_drafts))
                         time.sleep(2)  # Rate limiting
@@ -778,9 +781,9 @@ def render_email_outreach_section(app, current_campaign=None):
         # Filter drafts using cached sent status
         filtered_drafts = drafts.copy()
         if show_sent == "Unsent Only":
-            filtered_drafts = [d for d in filtered_drafts if not sent_status[d['username']]]
+            filtered_drafts = [d for d in filtered_drafts if d.get('username') and not sent_status.get(d.get('username'), False)]
         elif show_sent == "Sent Only":
-            filtered_drafts = [d for d in filtered_drafts if sent_status[d['username']]]
+            filtered_drafts = [d for d in filtered_drafts if d.get('username') and sent_status.get(d.get('username'), False)]
         
         # Sort drafts using cached sent status
         if sort_by == "Followers":
@@ -794,11 +797,14 @@ def render_email_outreach_section(app, current_campaign=None):
         
         # Display each draft as an expandable card
         for draft in filtered_drafts:
-            is_sent = sent_status[draft['username']]
+            username = draft.get('username')
+            if not username:
+                continue
+            is_sent = sent_status.get(username, False)
             status_icon = "✅" if is_sent else "📧"
             status_text = "SENT" if is_sent else "DRAFT"
             
-            with st.expander(f"{status_icon} @{draft['username']} - {draft['nickname']} ({draft.get('followers', 0):,} followers) - {status_text}"):
+            with st.expander(f"{status_icon} @{username} - {draft.get('nickname', username)} ({draft.get('followers', 0):,} followers) - {status_text}"):
                 # Email preview
                 col_preview, col_actions = st.columns([3, 1])
                 
@@ -811,13 +817,13 @@ def render_email_outreach_section(app, current_campaign=None):
                         "**Body:**",
                         value=draft['body'],
                         height=200,
-                        key=f"body_{draft['username']}",
+                        key=f"body_{username}",
                         disabled=is_sent
                     )
                 
                 with col_actions:
                     if is_sent:
-                        sent_info = email_manager.sent_status.get(f"{current_campaign or 'default'}_{draft['username']}", {})
+                        sent_info = email_manager.sent_status.get(f"{current_campaign or 'default'}_{username}", {})
                         st.success("✅ Sent")
                         if sent_info.get('sent_at'):
                             st.caption(f"Sent: {sent_info['sent_at'][:10]}")
@@ -825,14 +831,14 @@ def render_email_outreach_section(app, current_campaign=None):
                         st.write("**Actions:**")
                         
                         # Send button
-                        if st.button(f"📤 Send", key=f"send_{draft['username']}", type="primary"):
+                        if st.button(f"📤 Send", key=f"send_{username}", type="primary"):
                             with st.spinner("Sending..."):
                                 success, msg = email_manager.send_email(
                                     draft['email'],
                                     draft['subject'],
                                     edited_body,  # Use edited version
                                     attachment_path=attachment_path,
-                                    username=draft['username'],
+                                    username=username,
                                     campaign=current_campaign or "default"
                                 )
                                 if success:
@@ -846,8 +852,8 @@ def render_email_outreach_section(app, current_campaign=None):
                                     st.error(f"❌ {msg}")
                         
                         # Test send
-                        test_email = st.text_input("Test email:", key=f"test_{draft['username']}")
-                        if st.button(f"🧪 Test", key=f"test_btn_{draft['username']}"):
+                        test_email = st.text_input("Test email:", key=f"test_{username}")
+                        if st.button(f"🧪 Test", key=f"test_btn_{username}"):
                             if test_email and '@' in test_email:
                                 success, msg = email_manager.send_email(
                                     test_email,
@@ -907,8 +913,10 @@ def render_email_outreach_section(app, current_campaign=None):
                     all_drafts = email_manager.draft_cache.get_campaign_drafts(current_campaign or "default")
                     cache_data = {}
                     for draft in all_drafts:
-                        cache_key = f"{draft['campaign']}_{draft['username']}"
-                        cache_data[cache_key] = draft
+                        draft_username = draft.get('username')
+                        if draft_username:
+                            cache_key = f"{draft['campaign']}_{draft_username}"
+                            cache_data[cache_key] = draft
                 
                 cache_export = json.dumps(cache_data, indent=2)
                 st.download_button(
