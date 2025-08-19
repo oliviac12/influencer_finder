@@ -204,7 +204,9 @@ def render_scheduling_section(email_manager, drafts, current_campaign, attachmen
             
             # Show scheduled emails
             for email in pending_schedule[:10]:  # Show first 10
-                scheduled_time = email['scheduled_time']
+                scheduled_time = email.get('scheduled_time')
+                if not scheduled_time:
+                    continue
                 # Parse string to datetime if needed
                 if isinstance(scheduled_time, str):
                     scheduled_time = datetime.fromisoformat(scheduled_time.replace('Z', '+00:00'))
@@ -216,7 +218,7 @@ def render_scheduling_section(email_manager, drafts, current_campaign, attachmen
                 col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
                 
                 with col1:
-                    st.write(f"@{email['username']}")
+                    st.write(f"@{email.get('username', 'unknown')}")
                 
                 with col2:
                     st.write(scheduled_time.strftime('%b %d, %I:%M %p'))
@@ -233,9 +235,13 @@ def render_scheduling_section(email_manager, drafts, current_campaign, attachmen
                         st.write("Ready to send")
                 
                 with col4:
-                    if st.button("❌", key=f"cancel_{email['schedule_id']}", help="Cancel"):
-                        scheduler.cancel_scheduled_email(email['schedule_id'])
-                        st.rerun()
+                    schedule_id = email.get('schedule_id') or email.get('id')
+                    if schedule_id:
+                        if st.button("❌", key=f"cancel_{schedule_id}", help="Cancel"):
+                            scheduler.cancel_scheduled_email(schedule_id)
+                            st.rerun()
+                    else:
+                        st.write("—")
             
             if len(pending_schedule) > 10:
                 st.write(f"... and {len(pending_schedule) - 10} more")
@@ -252,12 +258,12 @@ def render_scheduling_section(email_manager, drafts, current_campaign, attachmen
                 for email in sent_emails[-5:]:  # Last 5
                     if 'sent_at' in email:
                         sent_time = datetime.fromisoformat(email['sent_at'])
-                        st.write(f"@{email['username']} - {sent_time.strftime('%b %d at %I:%M %p')}")
+                        st.write(f"@{email.get('username', 'unknown')} - {sent_time.strftime('%b %d at %I:%M %p')}")
             
             if failed_emails:
                 st.write("**❌ Failed**")
                 for email in failed_emails[-5:]:  # Last 5
-                    st.write(f"@{email['username']} - {email.get('last_error', 'Unknown error')}")
+                    st.write(f"@{email.get('username', 'unknown')} - {email.get('last_error', 'Unknown error')}")
     
     with tab3:
         st.write("**🎯 Quick Schedule Options**")
