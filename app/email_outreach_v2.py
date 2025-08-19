@@ -692,8 +692,36 @@ def render_email_outreach_section(app, current_campaign=None):
             if st.button("🔄 Regenerate All"):
                 # Clear cache for this campaign
                 cleared = email_manager.draft_cache.clear_campaign_drafts(current_campaign or "default")
-                del st.session_state[f"email_drafts_{current_campaign}"]
-                st.info(f"Cleared {cleared} cached drafts")
+                st.info(f"Cleared {cleared} cached drafts. Now regenerating with updated template...")
+                
+                # Regenerate all drafts with new template
+                with st.spinner(f"Regenerating {len(creators_with_emails)} email drafts with updated template..."):
+                    regenerated_drafts = []
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
+                    
+                    for idx, (username, creator_data) in enumerate(creators_with_emails):
+                        status_text.text(f"Regenerating draft for @{username}...")
+                        creator_data['username'] = username
+                        
+                        # Force regeneration by using use_cache=False
+                        draft = email_manager.generate_personalized_email(
+                            creator_data,
+                            "",  # Will use existing AI analysis if available
+                            current_campaign or "default",
+                            username=username,
+                            use_cache=False  # Force fresh generation
+                        )
+                        
+                        if draft and draft.get('body'):
+                            regenerated_drafts.append(draft)
+                        
+                        progress_bar.progress((idx + 1) / len(creators_with_emails))
+                    
+                    status_text.text("")
+                    st.session_state[f"email_drafts_{current_campaign}"] = regenerated_drafts
+                    st.success(f"✅ Regenerated {len(regenerated_drafts)} email drafts with updated template!")
+                
                 time.sleep(1)
                 st.rerun()
         
