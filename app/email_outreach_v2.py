@@ -24,6 +24,7 @@ from email_scheduling_ui import render_scheduling_section
 # Try to import Supabase cache first, fallback to file cache
 try:
     from utils.supabase_email_draft_cache import SupabaseEmailDraftCache
+    from supabase import create_client
     SUPABASE_AVAILABLE = True
 except ImportError:
     SUPABASE_AVAILABLE = False
@@ -46,7 +47,7 @@ class EmailOutreachManager:
             try:
                 # Check if Supabase environment variables are set
                 supabase_url = os.getenv('SUPABASE_URL')
-                supabase_key = os.getenv('SUPABASE_ANON_KEY')
+                supabase_key = os.getenv('SUPABASE_KEY')
                 
                 # Store debug info to show in UI later
                 self.debug_info = {
@@ -66,7 +67,7 @@ class EmailOutreachManager:
                         if hasattr(st, 'secrets'):
                             self.debug_info['secrets_available'] = True
                             url_in_secrets = st.secrets.get('SUPABASE_URL')
-                            key_in_secrets = st.secrets.get('SUPABASE_ANON_KEY')
+                            key_in_secrets = st.secrets.get('SUPABASE_KEY')
                             self.debug_info['secrets_url'] = 'SET' if url_in_secrets else 'NOT SET'
                             self.debug_info['secrets_key'] = 'SET' if key_in_secrets else 'NOT SET'
                             
@@ -82,19 +83,24 @@ class EmailOutreachManager:
                     self.draft_cache = SupabaseEmailDraftCache()
                     self.use_supabase = True
                     self.cache_status = "supabase"
+                    # Initialize Supabase client for sent email tracking
+                    self.supabase = create_client(supabase_url, supabase_key)
                     print("✅ Using Supabase email draft cache (persistent)")
                 else:
                     self.draft_cache = EmailDraftCache()
                     self.cache_status = "file_no_supabase_creds"
+                    self.supabase = None
                     print("⚠️  Supabase credentials not found, using file cache")
                     
             except Exception as e:
                 self.draft_cache = EmailDraftCache()
                 self.cache_status = "file_supabase_error"
+                self.supabase = None
                 print(f"⚠️  Supabase cache failed, falling back to file cache: {str(e)}")
         else:
             self.draft_cache = EmailDraftCache()
             self.cache_status = "file_no_supabase_module"
+            self.supabase = None
             print("📁 Using file-based email draft cache (Supabase module not available)")
         
     def get_email_template(self):
@@ -138,6 +144,36 @@ Best,
             "campaign": campaign
         }
         self.save_sent_status()
+    
+    def record_sent_email(self, username, campaign, to_email, subject, body, tracking_id=None, attachment_path=None):
+        """Record sent email in Supabase database for tracking"""
+        if not self.supabase:
+            print("⚠️ Supabase not available, skipping sent email record")
+            return
+        
+        try:
+            sent_time = datetime.now().isoformat()
+            
+            # Create a unique email_id for this manual send
+            email_id = f"manual_{username}_{campaign}_{int(datetime.now().timestamp())}"
+            
+            sent_email_data = {
+                'email_id': email_id,
+                'username': username,
+                'campaign': campaign,
+                'to_email': to_email,
+                'subject': subject,
+                'body': body,
+                'sent_at': sent_time,
+                'attachment_path': attachment_path,
+                'tracking_id': tracking_id
+            }
+            
+            result = self.supabase.table('sent_emails').insert(sent_email_data).execute()
+            print(f"✅ Recorded sent email to {to_email} in database")
+            
+        except Exception as e:
+            print(f"⚠️ Failed to record sent email in database: {str(e)}")
     
     def is_sent(self, username, campaign):
         """Check if email was sent"""
@@ -335,9 +371,19 @@ Do not include any other text or explanation - just the single sentence.
             server.sendmail(from_email, to_email, text)
             server.quit()
             
-            # Mark as sent
+            # Mark as sent and record in database
             if username and campaign:
                 self.mark_as_sent(username, campaign)
+                # Also record in Supabase for tracking dashboard
+                self.record_sent_email(
+                    username=username,
+                    campaign=campaign,
+                    to_email=to_email,
+                    subject=subject,
+                    body=body,
+                    tracking_id=tracking_id,
+                    attachment_path=attachment_path
+                )
             
             return True, "Email sent successfully!"
             

@@ -56,8 +56,10 @@ class EmailTrackingManager:
             # Don't fail if tracking service is down
             print(f"Warning: Could not log sent email to tracking service: {e}")
         
-        # Return tracking pixel HTML
-        pixel_url = f"{self.tracking_domain}/track/open?id={tracking_id}&campaign={campaign}"
+        # Return tracking pixel HTML with all parameters
+        pixel_url = f"{self.tracking_domain}/track/open?id={tracking_id}&campaign={campaign}&username={username}"
+        if recipient_email:
+            pixel_url += f"&recipient_email={recipient_email}"
         return f'<img src="{pixel_url}" width="1" height="1" style="display:none;">', tracking_id
     
     def log_email_sent(self, tracking_id, username, campaign):

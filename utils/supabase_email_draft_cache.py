@@ -15,10 +15,10 @@ class SupabaseEmailDraftCache:
     def __init__(self):
         """Initialize Supabase client for email draft cache"""
         self.supabase_url = os.getenv('SUPABASE_URL')
-        self.supabase_key = os.getenv('SUPABASE_ANON_KEY')
+        self.supabase_key = os.getenv('SUPABASE_KEY')
         
         if not self.supabase_url or not self.supabase_key:
-            raise ValueError("SUPABASE_URL and SUPABASE_ANON_KEY must be set")
+            raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set")
         
         self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
     
@@ -258,4 +258,4 @@ if __name__ == "__main__":
         
     except Exception as e:
         print(f"Error testing Supabase cache: {str(e)}")
-        print("Make sure SUPABASE_URL and SUPABASE_ANON_KEY are set in your environment")
+        print("Make sure SUPABASE_URL and SUPABASE_KEY are set in your environment")

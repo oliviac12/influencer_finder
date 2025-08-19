@@ -47,7 +47,7 @@ def migrate_email_cache():
         print("✅ Connected to Supabase")
     except Exception as e:
         print(f"❌ Error connecting to Supabase: {str(e)}")
-        print("Make sure SUPABASE_URL and SUPABASE_ANON_KEY are set in your environment")
+        print("Make sure SUPABASE_URL and SUPABASE_KEY are set in your environment")
         return
     
     # Show current Supabase cache stats

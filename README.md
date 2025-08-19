@@ -252,6 +252,24 @@ TikAPI Fallback ($25/month) → Success ✅
   - [ ] Creator conversion funnel
   - [ ] ROI tracking
 
+## 🐛 Known Issues
+
+### Replit Scheduler Attachment Bug
+- **Issue**: Scheduled emails are sent without attachments despite `attachment_path` being set
+- **Impact**: Manual emails work fine, but scheduled emails via Replit don't include PDF attachments
+- **Status**: Confirmed bug - attachment logic works locally but fails in Replit environment
+- **Workaround**: Use manual email sending for emails that require attachments
+- **Priority**: Medium (affects attachment functionality but not core email sending)
+
+### Streamlit Cloud Supabase Connection
+- **Issue**: EmailOutreachManager component can't access Supabase credentials on Streamlit Cloud
+- **Impact**: Shows "File Cache (No Credentials)" instead of using persistent Supabase cache
+- **Status**: Other Supabase features work fine, only affects EmailOutreachManager
+- **Workaround**: Cache still works locally and on other components
+- **Priority**: Low (functionality works, just less optimal caching)
+
+## 🚀 Future Improvements
+
 ### Future Screening Improvements
 - [ ] **Database Integration**: Replace CSV-based data storage with SQLite/PostgreSQL database
   - Avoid duplicate API calls by checking existing creator/post data

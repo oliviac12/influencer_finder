@@ -136,8 +136,8 @@ class SupabaseEmailScheduler:
             print(f"❌ Error getting stats: {e}")
             return {'pending': 0, 'sent': 0, 'failed': 0, 'total': 0}
 
-def send_email(to_email, subject, body):
-    """Send email via SMTP"""
+def send_email(to_email, subject, body, attachment_path=None):
+    """Send email via SMTP with optional attachment"""
     from_email = os.getenv('SMTP_EMAIL', 'olivia@unsettled.xyz')
     from_password = os.getenv('SMTP_PASSWORD')
     
@@ -153,6 +153,42 @@ def send_email(to_email, subject, body):
         msg['Subject'] = subject
         msg.attach(MIMEText(body, 'plain'))
         
+        # Add attachment if provided
+        if attachment_path:
+            # Try multiple possible paths
+            possible_paths = [
+                attachment_path,  # Original path
+                f"shared_attachments/{os.path.basename(attachment_path)}",  # shared_attachments directory
+                f"shared_attachments/Wonder_InfluenceKit_fall2025.pdf"  # Known good file
+            ]
+            
+            attachment_added = False
+            for path in possible_paths:
+                if os.path.exists(path):
+                    try:
+                        from email.mime.base import MIMEBase
+                        from email import encoders
+                        
+                        with open(path, "rb") as attachment:
+                            part = MIMEBase('application', 'octet-stream')
+                            part.set_payload(attachment.read())
+                        
+                        encoders.encode_base64(part)
+                        part.add_header(
+                            'Content-Disposition',
+                            f'attachment; filename= {os.path.basename(path)}'
+                        )
+                        msg.attach(part)
+                        attachment_added = True
+                        print(f"✅ Added attachment: {path}")
+                        break
+                    except Exception as e:
+                        print(f"⚠️ Failed to add attachment from {path}: {e}")
+                        continue
+            
+            if not attachment_added:
+                print(f"⚠️ Could not find attachment file. Tried: {possible_paths}")
+        
         # Send via SMTP
         server = smtplib.SMTP('smtp.zoho.com', 587)
         server.starttls()
@@ -160,7 +196,7 @@ def send_email(to_email, subject, body):
         server.send_message(msg)
         server.quit()
         
-        print(f"✅ Sent email to {to_email}")
+        print(f"✅ Sent email to {to_email}" + (" with attachment" if attachment_path else ""))
         return True
         
     except Exception as e:
@@ -196,7 +232,8 @@ def main():
                         success = send_email(
                             email_data['to_email'],
                             email_data['subject'],
-                            email_data['body']
+                            email_data['body'],
+                            email_data.get('attachment_path')
                         )
                         
                         if success:
