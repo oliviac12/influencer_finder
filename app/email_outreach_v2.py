@@ -113,7 +113,7 @@ I've been following your content on TikTok, and your content really aligns with 
 
 I'm reaching out on behalf of [BRAND_NAME], a design-focused luggage brand. At the moment, you may not NEED another carry-on, but this brand is quite unique - they position themselves as a travel companion for people who choose their own path, and are on their journey to become the person they want to be. That's why you popped into my head and thought you might be a good fit.
 
-I don't want this email to sound like we just talk budget - the most important thing is that we love who you are and who you are becoming. This is a commission-based campaign with gifted carry and very attractive performance bonuses on top. We're preparing for the launch in fall and upcoming holiday season and looking for the right creators to partner with during this exciting time.
+I don't want this email to sound like we just talk budget - the most important thing is that we love who you are and who you are becoming. This is a commission-based campaign with gifted carry-on and very attractive performance bonuses on top. We're preparing for the launch in fall and upcoming holiday season and looking for the right creators to partner with during this exciting time.
 
 I've attached more information about [BRAND_NAME] and our collaboration opportunities for you to review.
 
