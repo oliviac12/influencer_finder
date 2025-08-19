@@ -200,7 +200,27 @@ def render_scheduling_section(email_manager, drafts, current_campaign, attachmen
         pending_schedule = [e for e in campaign_schedule if e['status'] == 'pending']
         
         if pending_schedule:
-            st.write(f"**Upcoming sends ({len(pending_schedule)})**")
+            col_header, col_cancel = st.columns([3, 1])
+            with col_header:
+                st.write(f"**Upcoming sends ({len(pending_schedule)})**")
+            with col_cancel:
+                if st.button("🚫 Cancel All", type="secondary", help="Cancel all scheduled emails for this campaign"):
+                    # Cancel all pending scheduled emails for this campaign
+                    cancelled_count = 0
+                    for email in pending_schedule:
+                        schedule_id = email.get('schedule_id') or email.get('id')
+                        if schedule_id:
+                            try:
+                                scheduler.cancel_scheduled_email(schedule_id)
+                                cancelled_count += 1
+                            except Exception as e:
+                                st.error(f"Failed to cancel email {schedule_id}: {e}")
+                    
+                    if cancelled_count > 0:
+                        st.success(f"✅ Cancelled {cancelled_count} scheduled emails!")
+                        st.rerun()
+                    else:
+                        st.warning("No emails were cancelled")
             
             # Show scheduled emails
             for email in pending_schedule[:10]:  # Show first 10
