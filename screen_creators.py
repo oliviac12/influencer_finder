@@ -12,8 +12,11 @@ import os
 from clients.tikapi_client import TikAPIClient
 from clients.creator_data_client import CreatorDataClient
 from utils.filter_shoppable import ShoppableContentFilter
+from utils.content_database import ContentDatabase
 from datetime import datetime
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 
 class CreatorScreener:
     def __init__(self, tikapi_key, brightdata_token=None):
@@ -25,6 +28,8 @@ class CreatorScreener:
             self.data_client = TikAPIClient(tikapi_key)
             print("🔥 Using TikAPI client only")
         self.shoppable_filter = ShoppableContentFilter()
+        # Initialize content database for automatic saving
+        self.content_db = ContentDatabase()
         # Note: engagement filtering removed - downstream processing handles view thresholds
         self.processed_creators = []
         self.failed_creators = []
@@ -102,71 +107,8 @@ class CreatorScreener:
             print(f"❌ Error reading {csv_file}: {e}")
             return
         
-        # Screen each creator
-        for i, creator in enumerate(creators, 1):
-            username = creator['username']
-            print(f"\n[{i}/{len(creators)}] Screening @{username}...")
-            
-            # Skip if creator already fully processed
-            if username in self.existing_creators:
-                print(f"   ⏭️ Skipping - already processed in previous run")
-                continue
-            
-            # Skip if username is known to be invalid (timeout/error)
-            if username in self.invalid_usernames:
-                print(f"   🚫 Skipping - username previously marked as invalid")
-                continue
-            
-            result = self.screen_creator(username, creator)
-            
-            if result['qualified']:
-                self.processed_creators.append(result)
-                shoppable_info = f", {result['shoppable_posts_found']} shoppable posts"
-                photo_filter_info = f" ({result['photo_posts_filtered']} photos filtered)" if result.get('photo_posts_filtered', 0) > 0 else ""
-                print(f"✅ QUALIFIED - Avg: {result['avg_views']:,} views, {result['days_since_last_post']} days ago{shoppable_info}{photo_filter_info}")
-            else:
-                self.failed_creators.append(result)
-                if result['error']:
-                    print(f"❌ ERROR - {result['error']}")
-                    
-                    # Check for Bright Data 3-minute timeout specifically
-                    error_msg = result['error'].lower()
-                    if 'bright data mcp timeout (3 minutes)' in error_msg:
-                        print(f"   ⏰ Bright Data 3-minute timeout detected for @{username}")
-                        print(f"   🗑️ Removing @{username} from input dataset and adding to invalid list")
-                        self._remove_username_from_input_csv(username, creator)
-                        continue  # Skip further processing for this username
-                    
-                    # Check for other invalid username errors 
-                    elif any(phrase in error_msg for phrase in ['user not found', 'user doesn\'t exist', 'invalid user', 'not available']):
-                        self.invalid_usernames.add(username)
-                        print(f"   🚫 Marking @{username} as invalid username - will skip in future runs")
-                        # Save invalid usernames immediately
-                        self._save_invalid_usernames()
-                    
-                    # Check for rate limit errors and stop processing
-                    if 'rate-limit' in error_msg or 'rate limit' in error_msg:
-                        print(f"\n🚨 RATE LIMIT DETECTED - Stopping processing to preserve API credits")
-                        print(f"📊 Processed {i}/{len(creators)} creators before hitting rate limit")
-                        print(f"✅ Found {len(self.processed_creators)} processed creators so far")
-                        
-                        # Save current progress"
-                        self.save_dataframes()
-                        self._save_caches()
-                        self.print_summary()
-                        
-                        print(f"\n⏰ You can resume processing later when rate limits reset (24h window)")
-                        print(f"💡 The system will automatically skip the {i-1} already processed creators")
-                        return  # Early exit from the method
-                else:
-                    print(f"❌ FAILED - {result['failure_reason']}")
-            
-            # Save caches incrementally after each creator (every 5 creators to avoid too much I/O)
-            if i % 5 == 0:
-                self._save_caches()
-            
-            # Increased delay to avoid rate limiting
-            time.sleep(5)
+        # Use parallel processing for faster screening
+        self._screen_creators_parallel(creators)
         
         # Save results
         self.save_dataframes()
@@ -220,59 +162,95 @@ class CreatorScreener:
             # Filter to get 28 most recent posts (excluding potential pinned posts)
             recent_posts = self._filter_recent_posts(all_posts, 28)
             
-            # Filter 1: Check for shoppable content in recent posts FIRST
+            # Filter 1: Check for shoppable content in recent posts FIRST (optimized with batch processing)
             print(f"   🛍️ Filter 1: Checking shoppable content in {len(recent_posts)} recent posts...")
             shoppable_posts = []
             
-            # Check each recent post for shoppable content (early exit after finding 1)
-            for i, post in enumerate(recent_posts, 1):  # Check up to 28 recent posts
+            # Get URLs to check (not in cache)
+            urls_to_check = []
+            cached_results = {}
+            post_url_map = {}  # Map URLs to posts
+            
+            for post in recent_posts:
                 if post.get('tiktok_url'):
-                    print(f"   Checking post {i}/{len(recent_posts)}...", end=" ")
-                    
-                    # Check cache first
                     url = post['tiktok_url']
+                    post_url_map[url] = post
+                    
                     if url in self.shoppable_cache:
-                        is_shoppable = self.shoppable_cache[url]
-                        print(f"📋", end=" ")
+                        cached_results[url] = self.shoppable_cache[url]
                     else:
-                        is_shoppable = self.shoppable_filter.check_tiktok_commission_eligible(url)
-                        self.shoppable_cache[url] = is_shoppable
-                        # Save shoppable cache immediately after each check
-                        try:
-                            with open(os.path.join(self.cache_dir, "shoppable_cache.json"), 'w') as f:
-                                json.dump(self.shoppable_cache, f, indent=2)
-                        except Exception as e:
-                            print(f"   Warning: Could not save shoppable cache: {e}")
+                        urls_to_check.append(url)
+            
+            print(f"   📋 Found {len(cached_results)} cached results, checking {len(urls_to_check)} new URLs...")
+            
+            # Batch check uncached URLs
+            new_results = {}
+            if urls_to_check:
+                # Check in smaller batches to find shoppable content quickly
+                batch_size = min(5, len(urls_to_check))  # Check 5 URLs at a time
+                
+                for batch_start in range(0, len(urls_to_check), batch_size):
+                    batch_urls = urls_to_check[batch_start:batch_start + batch_size]
+                    print(f"   🔄 Batch checking {len(batch_urls)} URLs...")
                     
-                    # Collect post data for creator_post_lookup dataframe (for posts we checked)
-                    post_lookup_row = {
-                        'url': post.get('tiktok_url', ''),
-                        'creator_username': username,
-                        'is_shoppable': is_shoppable,
-                        'post_id': post.get('id', ''),
-                        'description': post.get('description', ''),
-                        'create_time': post.get('create_time', 0),
-                        'formatted_date': post.get('formatted_date', ''),
-                        'duration': post.get('duration', 0),
-                        'is_photo_post': post.get('is_photo_post', False),
-                        'content_type': post.get('content_type', 'video'),
-                        'views': post.get('stats', {}).get('views', 0),
-                        'likes': post.get('stats', {}).get('likes', 0),
-                        'comments': post.get('stats', {}).get('comments', 0),
-                        'shares': post.get('stats', {}).get('shares', 0)
-                    }
-                    self.creator_post_lookup_data.append(post_lookup_row)
+                    batch_results = self.shoppable_filter.check_batch_tiktok_commission_eligible(batch_urls)
+                    new_results.update(batch_results)
                     
-                    if is_shoppable:
-                        shoppable_posts.append(post)
-                        print(f"✅ Shoppable - Found! Skipping remaining posts.")
-                        break  # Early exit after finding first shoppable post
-                    else:
-                        print(f"❌ Not shoppable")
+                    # Update cache with new results
+                    self.shoppable_cache.update(batch_results)
+                    
+                    # Early exit if we found shoppable content
+                    if any(batch_results.values()):
+                        print(f"   ✅ Found shoppable content! Stopping batch checking.")
+                        break
+            
+            # Combine all results
+            all_results = {**cached_results, **new_results}
+            
+            # Process posts and collect data
+            posts_checked = 0
+            for post in recent_posts:
+                url = post.get('tiktok_url')
+                if not url or url not in all_results:
+                    continue
+                    
+                posts_checked += 1
+                is_shoppable = all_results[url]
+                
+                # Collect post data for creator_post_lookup dataframe
+                post_lookup_row = {
+                    'url': url,
+                    'creator_username': username,
+                    'is_shoppable': is_shoppable,
+                    'post_id': post.get('id', ''),
+                    'description': post.get('description', ''),
+                    'create_time': post.get('create_time', 0),
+                    'formatted_date': post.get('formatted_date', ''),
+                    'duration': post.get('duration', 0),
+                    'is_photo_post': post.get('is_photo_post', False),
+                    'content_type': post.get('content_type', 'video'),
+                    'views': post.get('stats', {}).get('views', 0),
+                    'likes': post.get('stats', {}).get('likes', 0),
+                    'comments': post.get('stats', {}).get('comments', 0),
+                    'shares': post.get('stats', {}).get('shares', 0)
+                }
+                self.creator_post_lookup_data.append(post_lookup_row)
+                
+                if is_shoppable:
+                    shoppable_posts.append(post)
+                    print(f"   ✅ Found shoppable post: {url[:50]}...")
+                    # Continue checking all posts to collect complete data
+            
+            # Save updated cache
+            if new_results:
+                try:
+                    with open(os.path.join(self.cache_dir, "shoppable_cache.json"), 'w') as f:
+                        json.dump(self.shoppable_cache, f, indent=2)
+                except Exception as e:
+                    print(f"   Warning: Could not save shoppable cache: {e}")
             
             # Early exit if no shoppable content found
             if len(shoppable_posts) == 0:
-                posts_checked = len(recent_posts)  # We checked all posts if none were shoppable
                 return {
                     'username': username,
                     'qualified': False,
@@ -283,7 +261,6 @@ class CreatorScreener:
                     'shoppable_posts_found': 0
                 }
             
-            posts_checked = i  # i is the last post number we checked
             print(f"   ✅ SHOPPABLE CONTENT FOUND: {len(shoppable_posts)} posts (checked {posts_checked}/{len(recent_posts)} posts)")
             print(f"   🎉 CREATOR PROCESSED - Data cached for downstream analysis!")
             
@@ -305,6 +282,49 @@ class CreatorScreener:
                 last_post_time = datetime.fromtimestamp(most_recent_post['create_time'])
                 days_since_last_post = (current_time - last_post_time).days
             
+            # Save to content database automatically
+            if len(shoppable_posts) > 0:  # Only save qualified creators
+                try:
+                    # Prepare posts data for content database
+                    posts_for_db = []
+                    for post in video_posts[:30]:  # Save up to 30 posts
+                        post_data = {
+                            'id': post.get('id', ''),
+                            'desc': post.get('description', ''),
+                            'create_time': post.get('create_time', 0),
+                            'formatted_date': post.get('formatted_date', ''),
+                            'duration': post.get('duration', 0),
+                            'is_photo_post': post.get('is_photo_post', False),
+                            'content_type': post.get('content_type', 'video'),
+                            'tiktok_url': post.get('tiktok_url', ''),
+                            'views': post.get('stats', {}).get('views', 0),
+                            'likes': post.get('stats', {}).get('likes', 0),
+                            'comments': post.get('stats', {}).get('comments', 0),
+                            'shares': post.get('stats', {}).get('shares', 0),
+                            'tags': post.get('hashtags', [])  # Include hashtags if available
+                        }
+                        posts_for_db.append(post_data)
+                    
+                    # Save to content database
+                    self.content_db.save_creator_content(
+                        username=username,
+                        profile_data={
+                            'username': profile['username'],
+                            'nickname': profile['nickname'],
+                            'bio': profile.get('signature', ''),
+                            'followers': profile['followers'],
+                            'following': profile['following'],
+                            'videos': profile['videos'],
+                            'verified': profile['verified'],
+                            'sec_uid': profile.get('sec_uid', ''),
+                            'email': profile.get('email', '')  # Include email if extracted
+                        },
+                        top_posts_data=posts_for_db
+                    )
+                    print(f"   💾 Saved to content database")
+                except Exception as e:
+                    print(f"   ⚠️ Warning: Could not save to content database: {e}")
+            
             # All creators with shoppable content are processed (no qualification filtering)
             qualified = True
             failure_reason = None
@@ -316,7 +336,7 @@ class CreatorScreener:
                 'total_posts_analyzed': len(video_posts),
                 'video_posts_found': len(video_posts),
                 'photo_posts_filtered': len(recent_posts) - len(video_posts),
-                'recent_posts_checked': len(recent_posts[:10]),
+                'recent_posts_checked': posts_checked,
                 'shoppable_posts_found': len(shoppable_posts),
                 'avg_views': avg_views,
                 'avg_engagement': avg_engagement,
@@ -507,6 +527,102 @@ class CreatorScreener:
                 print(f"Warning: Could not load existing creators from cache: {e}")
         return existing_creators
     
+    def _screen_creators_parallel(self, creators):
+        """Screen creators using parallel processing for better performance"""
+        # Filter creators to process (skip already processed and invalid)
+        creators_to_process = []
+        for i, creator in enumerate(creators, 1):
+            username = creator['username']
+            
+            if username in self.existing_creators:
+                print(f"[{i}/{len(creators)}] ⏭️ @{username} - already processed")
+                continue
+                
+            if username in self.invalid_usernames:
+                print(f"[{i}/{len(creators)}] 🚫 @{username} - invalid username, skipping")
+                continue
+                
+            creators_to_process.append((i, creator))
+        
+        if not creators_to_process:
+            print("No new creators to process")
+            return
+        
+        print(f"\n🚀 Processing {len(creators_to_process)} creators with parallel processing...")
+        print(f"📊 Using 4 threads for optimal performance")
+        
+        # Thread-safe locks for shared data
+        self._print_lock = threading.Lock()
+        self._cache_lock = threading.Lock()
+        processed_count = 0
+        
+        # Process creators in parallel batches
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            # Submit all tasks
+            future_to_creator = {
+                executor.submit(self._screen_creator_threadsafe, i, creator, len(creators)): (i, creator)
+                for i, creator in creators_to_process
+            }
+            
+            # Process completed tasks
+            for future in as_completed(future_to_creator):
+                i, creator = future_to_creator[future]
+                processed_count += 1
+                
+                try:
+                    result = future.result()
+                    
+                    if result:
+                        with self._print_lock:
+                            if result['qualified']:
+                                self.processed_creators.append(result)
+                                shoppable_info = f", {result['shoppable_posts_found']} shoppable posts"
+                                photo_filter_info = f" ({result['photo_posts_filtered']} photos filtered)" if result.get('photo_posts_filtered', 0) > 0 else ""
+                                print(f"✅ [{processed_count}/{len(creators_to_process)}] @{result['username']} QUALIFIED - Avg: {result['avg_views']:,} views{shoppable_info}{photo_filter_info}")
+                            else:
+                                self.failed_creators.append(result)
+                                if result['error']:
+                                    print(f"❌ [{processed_count}/{len(creators_to_process)}] @{result['username']} ERROR - {result['error']}")
+                                    
+                                    # Handle specific errors
+                                    error_msg = result['error'].lower()
+                                    if 'bright data mcp timeout (3 minutes)' in error_msg:
+                                        print(f"   🗑️ Removing @{result['username']} from input dataset")
+                                        self._remove_username_from_input_csv(result['username'], creator)
+                                    elif any(phrase in error_msg for phrase in ['user not found', 'user doesn\'t exist', 'invalid user', 'not available']):
+                                        self.invalid_usernames.add(result['username'])
+                                        print(f"   🚫 Marking @{result['username']} as invalid")
+                                else:
+                                    print(f"❌ [{processed_count}/{len(creators_to_process)}] @{result['username']} FAILED - {result['failure_reason']}")
+                
+                except Exception as e:
+                    with self._print_lock:
+                        print(f"❌ [{processed_count}/{len(creators_to_process)}] Thread error processing @{creator['username']}: {e}")
+                
+                # Save caches periodically
+                if processed_count % 10 == 0:
+                    with self._cache_lock:
+                        self._save_caches()
+                        with self._print_lock:
+                            print(f"💾 Progress saved: {processed_count}/{len(creators_to_process)} completed")
+        
+        # Final save
+        self._save_caches()
+        print(f"\n🎉 Parallel processing completed: {len(creators_to_process)} creators processed")
+    
+    def _screen_creator_threadsafe(self, index, creator, total_creators):
+        """Thread-safe version of screen_creator with progress tracking"""
+        username = creator['username']
+        
+        with self._print_lock:
+            print(f"\n[{index}/{total_creators}] 🔄 Screening @{username}...")
+        
+        # Add small delay to avoid overwhelming APIs
+        time.sleep(1)
+        
+        result = self.screen_creator(username, creator)
+        return result
+
     def print_summary(self):
         """Print screening summary"""
         total = len(self.processed_creators) + len(self.failed_creators)
@@ -533,6 +649,14 @@ class CreatorScreener:
             print(f"\n🎯 PROCESSED CREATORS:")
             print(f"📊 Use helper functions to generate creator_lookup.csv and creator_post_lookup.csv")
             print(f"💡 Downstream processing will handle engagement/recency filtering")
+            
+            # Show content database stats
+            db_stats = self.content_db.get_stats()
+            print(f"\n📚 Content Database Updated:")
+            print(f"   Total creators: {db_stats['creator_count']}")
+            print(f"   Total posts: {db_stats['total_posts']}")
+            print(f"   Database size: {db_stats['db_size_mb']:.1f} MB")
+            print(f"   Location: {self.content_db.db_path}")
 
 
 def run_screening(input_csv_file, verbose=True):
