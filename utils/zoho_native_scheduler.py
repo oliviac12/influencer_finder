@@ -10,6 +10,10 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 from zoneinfo import ZoneInfo
 import time
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 
 class ZohoNativeScheduler:
@@ -48,20 +52,26 @@ class ZohoNativeScheduler:
             "grant_type": "refresh_token",
             "client_id": self.client_id,
             "client_secret": self.client_secret,
-            "refresh_token": self.refresh_token,
-            "scope": "ZohoMail.messages.ALL,ZohoMail.accounts.READ"
+            "refresh_token": self.refresh_token
+            # Note: scope is not needed for refresh token grant
         }
         
         response = requests.post(self.auth_url, data=data)
         
         if response.status_code == 200:
             token_data = response.json()
-            self._access_token = token_data["access_token"]
-            # Token expires in 1 hour, refresh 5 minutes early
-            expires_in = token_data.get("expires_in", 3600)
-            self._token_expiry = datetime.now() + timedelta(seconds=expires_in - 300)
-            return self._access_token
+            if "access_token" in token_data:
+                self._access_token = token_data["access_token"]
+                # Token expires in 1 hour, refresh 5 minutes early
+                expires_in = token_data.get("expires_in", 3600)
+                self._token_expiry = datetime.now() + timedelta(seconds=expires_in - 300)
+                return self._access_token
+            else:
+                print(f"Token response: {token_data}")
+                raise Exception(f"No access_token in response: {token_data}")
         else:
+            print(f"Token refresh failed with status {response.status_code}")
+            print(f"Response: {response.text}")
             raise Exception(f"Failed to get access token: {response.text}")
     
     def schedule_email(self, 
@@ -106,47 +116,48 @@ class ZohoNativeScheduler:
         # Convert scheduled time to Zoho format (MM/DD/YYYY HH:MM:SS)
         schedule_str = scheduled_time.strftime("%m/%d/%Y %H:%M:%S")
         
-        # Map timezone to Zoho format
+        # Map timezone to standard IANA format that Zoho accepts
         timezone_map = {
-            "US/Pacific": "GMT -8:00 (Pacific Standard Time - America/Los Angeles)",
-            "US/Eastern": "GMT -5:00 (Eastern Standard Time - America/New York)",
-            "Asia/Shanghai": "GMT +8:00 (China Standard Time - Asia/Shanghai)",
-            "UTC": "GMT +0:00 (Greenwich Mean Time - UTC)"
+            "US/Pacific": "America/Los_Angeles",
+            "US/Eastern": "America/New_York", 
+            "Asia/Shanghai": "Asia/Shanghai",
+            "UTC": "UTC"
         }
-        zoho_timezone = timezone_map.get(str(scheduled_time.tzinfo), "GMT -8:00 (Pacific Standard Time - America/Los Angeles)")
+        zoho_timezone = timezone_map.get(str(scheduled_time.tzinfo), "America/Los_Angeles")
         
-        # Prepare email data
+        # Prepare email data for Zoho Mail API
         email_data = {
             "fromAddress": from_address or os.getenv('SMTP_EMAIL'),
             "toAddress": to_email,
             "subject": subject,
             "content": body,
-            "contentType": "html",
-            
-            # Scheduling parameters
-            "scheduleType": "6",  # Custom schedule
-            "timezone": zoho_timezone,
-            "scheduleTime": schedule_str
+            "mailFormat": "html",
+            "isSchedule": True,  # Enable scheduling
+            "scheduleTime": schedule_str,  # MM/DD/YYYY HH:MM:SS format
+            "timeZone": zoho_timezone  # Standard IANA timezone
         }
         
-        # Add tracking headers if provided
-        if campaign or username:
-            email_data["mailHeaders"] = []
-            if campaign:
-                email_data["mailHeaders"].append({
-                    "key": "X-Campaign",
-                    "value": campaign
-                })
-            if username:
-                email_data["mailHeaders"].append({
-                    "key": "X-Creator-Username",
-                    "value": username
-                })
+        # Note: Custom headers not supported in Zoho Mail API
+        # Campaign and username tracking would need to be handled differently
+        # (e.g., stored in a local database or added to subject/body)
         
         # Handle attachments if provided
         if attachment_path and os.path.exists(attachment_path):
-            # For attachments, we need to use multipart form data
-            return self._send_with_attachment(email_data, attachment_path, headers)
+            # Upload attachment first
+            print(f"📎 Uploading attachment: {os.path.basename(attachment_path)}")
+            attachment_info = self._upload_attachment(attachment_path)
+            
+            if attachment_info:
+                # Add attachment reference to email data
+                email_data["attachments"] = [{
+                    "storeName": attachment_info.get('storeName'),
+                    "attachmentPath": attachment_info.get('attachmentPath'),
+                    "attachmentName": attachment_info.get('attachmentName', os.path.basename(attachment_path))
+                }]
+                print(f"✅ Attachment uploaded successfully")
+            else:
+                print(f"⚠️ Attachment upload failed, sending without attachment")
+                # Could fall back to SMTP here if needed
         
         # Send API request
         url = f"{self.api_base}/accounts/{self.account_id}/messages"
@@ -169,6 +180,43 @@ class ZohoNativeScheduler:
                 "error": response.text,
                 "status_code": response.status_code
             }
+    
+    def _upload_attachment(self, attachment_path: str) -> Dict:
+        """
+        Upload attachment to Zoho Mail
+        Returns attachment info dict or None if failed
+        """
+        try:
+            access_token = self.get_access_token()
+            
+            url = f"{self.api_base}/accounts/{self.account_id}/messages/attachments"
+            headers = {
+                "Authorization": f"Zoho-oauthtoken {access_token}",
+                "Accept": "application/json"
+            }
+            
+            with open(attachment_path, 'rb') as f:
+                # IMPORTANT: Must use 'attach' as field name, not 'file'
+                files = {'attach': (os.path.basename(attachment_path), f, 'application/octet-stream')}
+                params = {'uploadType': 'multipart'}
+                
+                response = requests.post(url, headers=headers, files=files, params=params)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if 'data' in data:
+                    attachments = data['data']
+                    if isinstance(attachments, list) and len(attachments) > 0:
+                        return attachments[0]
+                return None
+            else:
+                print(f"  Upload failed: {response.status_code} - {response.text[:100]}")
+                return None
+                
+        except Exception as e:
+            print(f"  Upload error: {str(e)}")
+            return None
+    
     
     def _send_with_attachment(self, email_data: Dict, attachment_path: str, headers: Dict) -> Dict:
         """Send email with attachment using multipart form data"""
@@ -211,13 +259,16 @@ class ZohoNativeScheduler:
                            start_time: datetime,
                            interval_minutes: int = 5) -> List[str]:
         """
-        Schedule multiple emails with intervals
+        Schedule multiple emails with intervals, respecting Zoho's rate limits
+        
+        Zoho Rate Limit: 50 emails per hour
+        Strategy: Send 30 emails per batch with 40 min gap between batches
         
         Args:
             emails: List of email dictionaries with to_email, subject, body
             campaign: Campaign identifier
             start_time: When to start sending
-            interval_minutes: Minutes between each email
+            interval_minutes: Minutes between each email (default 5, min 2 for rate limits)
         
         Returns:
             List of scheduled email IDs
@@ -225,7 +276,26 @@ class ZohoNativeScheduler:
         scheduled_ids = []
         current_time = start_time
         
+        # Zoho rate limit configuration
+        EMAILS_PER_BATCH = 30  # Send 30 emails per batch (under 50/hour limit)
+        BATCH_GAP_MINUTES = 40  # Wait 40 minutes between batches
+        MIN_INTERVAL = 2  # Minimum 2 minutes between emails to stay safe
+        
+        # Adjust interval if needed for rate limits
+        if len(emails) > EMAILS_PER_BATCH:
+            print(f"📊 Scheduling {len(emails)} emails in batches of {EMAILS_PER_BATCH}")
+            print(f"   Rate limit: 50 emails/hour (using 30 + 40min gap)")
+            interval_minutes = max(interval_minutes, MIN_INTERVAL)
+        
         for i, email in enumerate(emails):
+            # Check if we need a batch gap
+            if i > 0 and i % EMAILS_PER_BATCH == 0:
+                # Add batch gap
+                batch_num = i // EMAILS_PER_BATCH + 1
+                print(f"\n⏸️  Batch {batch_num} starting at {current_time.strftime('%H:%M')}")
+                print(f"   (40 min gap after previous batch to respect rate limits)")
+                current_time += timedelta(minutes=BATCH_GAP_MINUTES - interval_minutes)  # Subtract one interval since we'll add it back
+            
             # Schedule this email
             result = self.schedule_email(
                 to_email=email['email'],
@@ -239,15 +309,28 @@ class ZohoNativeScheduler:
             
             if result['success']:
                 scheduled_ids.append(result['email_id'])
-                print(f"  [{i+1}/{len(emails)}] Scheduled for @{email.get('username', 'unknown')} at {current_time.strftime('%H:%M')}")
+                batch_position = (i % EMAILS_PER_BATCH) + 1
+                print(f"  [{i+1}/{len(emails)}] Batch {(i//EMAILS_PER_BATCH)+1} #{batch_position}: @{email.get('username', 'unknown')} at {current_time.strftime('%H:%M')}")
             else:
-                print(f"  [{i+1}/{len(emails)}] Failed to schedule for @{email.get('username', 'unknown')}")
+                print(f"  [{i+1}/{len(emails)}] Failed: @{email.get('username', 'unknown')}")
             
             # Increment time for next email
             current_time += timedelta(minutes=interval_minutes)
             
-            # Small delay to avoid rate limiting
+            # Small delay to avoid API rate limiting
             time.sleep(0.5)
+        
+        # Summary
+        total_batches = (len(emails) - 1) // EMAILS_PER_BATCH + 1
+        if total_batches > 1:
+            end_time = current_time - timedelta(minutes=interval_minutes)
+            duration = (end_time - start_time).total_seconds() / 60
+            print(f"\n📅 Schedule Summary:")
+            print(f"   Total emails: {len(emails)}")
+            print(f"   Batches: {total_batches} ({EMAILS_PER_BATCH} per batch)")
+            print(f"   Start: {start_time.strftime('%H:%M')}")
+            print(f"   End: {end_time.strftime('%H:%M')}")
+            print(f"   Duration: {duration:.0f} minutes")
         
         return scheduled_ids
     

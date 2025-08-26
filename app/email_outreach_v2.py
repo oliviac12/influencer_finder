@@ -484,15 +484,73 @@ def render_email_outreach_section(app, current_campaign=None):
     if creators_without_emails:
         with st.expander(f"⚠️ {len(creators_without_emails)} creators without emails"):
             st.write(", ".join([f"@{u}" for u in creators_without_emails]))
-            if st.button("🔍 Try to Extract Emails"):
-                extracted_count = 0
+            
+            # Two buttons side by side
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("🔍 Try to Extract Emails"):
+                    extracted_count = 0
+                    for username in creators_without_emails:
+                        extracted_email = app.extract_and_cache_email(username)
+                        if extracted_email:
+                            st.success(f"✅ Extracted: @{username} → {extracted_email}")
+                            extracted_count += 1
+                    if extracted_count > 0:
+                        st.rerun()
+            
+            with col2:
+                if st.button("✏️ Manually Add Emails"):
+                    st.session_state.show_manual_email_input = True
+            
+            # Show manual input form if button was clicked
+            if st.session_state.get('show_manual_email_input', False):
+                st.markdown("---")
+                st.write("**Enter emails for creators:**")
+                
+                # Create input fields for each creator without email
+                manual_emails = {}
                 for username in creators_without_emails:
-                    extracted_email = app.extract_and_cache_email(username)
-                    if extracted_email:
-                        st.success(f"✅ Extracted: @{username} → {extracted_email}")
-                        extracted_count += 1
-                if extracted_count > 0:
-                    st.rerun()
+                    email_input = st.text_input(
+                        f"@{username}",
+                        key=f"manual_email_{username}",
+                        placeholder="enter email address"
+                    )
+                    if email_input:
+                        manual_emails[username] = email_input
+                
+                # Save button
+                if manual_emails and st.button("💾 Save Manual Emails", type="primary"):
+                    saved_count = 0
+                    from utils.content_database import ContentDatabase
+                    content_db = ContentDatabase()
+                    
+                    for username, email in manual_emails.items():
+                        # Basic email validation
+                        if "@" in email and "." in email:
+                            # Update the content database
+                            creator_data = content_db.get_creator(username)
+                            if creator_data:
+                                # Store email in profile section
+                                if 'profile' not in creator_data:
+                                    creator_data['profile'] = {}
+                                creator_data['profile']['email'] = email
+                                creator_data['profile']['email_source'] = 'manual'
+                                content_db.update_creator(username, creator_data)
+                                st.success(f"✅ Saved: @{username} → {email}")
+                                saved_count += 1
+                            else:
+                                st.warning(f"⚠️ Creator @{username} not found in database")
+                        else:
+                            st.error(f"❌ Invalid email for @{username}: {email}")
+                    
+                    if saved_count > 0:
+                        # Save the database
+                        content_db.save()
+                        st.success(f"💾 Saved {saved_count} email(s) to database")
+                        # Clear the form
+                        st.session_state.show_manual_email_input = False
+                        # Refresh the page
+                        st.rerun()
     
     # Main action: Generate all drafts
     st.subheader("📝 Email Drafts")

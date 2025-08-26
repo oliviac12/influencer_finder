@@ -123,7 +123,16 @@ class ContentDatabase:
     def get_stats(self) -> Dict:
         """Get database statistics"""
         db = self.load_database()
-        return db["metadata"]
+        stats = db["metadata"].copy()
+        
+        # Add database file size
+        import os
+        if os.path.exists(self.db_path):
+            stats["db_size_mb"] = os.path.getsize(self.db_path) / (1024 * 1024)
+        else:
+            stats["db_size_mb"] = 0
+            
+        return stats
     
     def search_creators_by_hashtag(self, hashtag: str) -> List[str]:
         """Search creators who use a specific hashtag"""
@@ -183,9 +192,39 @@ class ContentDatabase:
             return matches[0].lower() if matches else ""
         
         return ""
+    
+    def get_all_creators(self) -> Dict:
+        """Get all creators from the database"""
+        db = self.load_database()
+        return db["creators"]
+    
+    def get_creator(self, username: str) -> Optional[Dict]:
+        """Get a specific creator's data - alias for get_creator_content"""
+        return self.get_creator_content(username)
+    
+    def update_creator(self, username: str, creator_data: Dict):
+        """Update a creator's data"""
+        db = self.load_database()
+        if username in db["creators"]:
+            db["creators"][username] = creator_data
+            db["metadata"]["last_updated"] = datetime.now().isoformat()
+            self.save_database(db)
+            return True
+        # If creator doesn't exist, add them
+        db["creators"][username] = creator_data
+        db["metadata"]["total_creators"] = len(db["creators"])
+        db["metadata"]["last_updated"] = datetime.now().isoformat()
+        self.save_database(db)
+        return True
+    
+    def save(self):
+        """Save the current database state"""
+        # Database is already saved after each operation, but provide explicit save method
+        db = self.load_database()
+        db["metadata"]["last_updated"] = datetime.now().isoformat()
+        self.save_database(db)
 
 
-# Test the database functionality
 if __name__ == "__main__":
     print("🧪 Testing Content Database")
     
