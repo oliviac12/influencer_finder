@@ -210,10 +210,8 @@ with col2:
             uploaded_file.seek(0)
             df = pd.read_csv(uploaded_file)
             
-            # Debug: Show what columns were found
+            # Check if CSV has data
             if len(df) > 0:
-                st.info(f"📊 CSV loaded: {len(df)} rows, columns: {', '.join(df.columns)}")
-                
                 # Check for required columns (case-insensitive)
                 columns_lower = {col.lower(): col for col in df.columns}
                 
@@ -323,20 +321,9 @@ with col_btn2:
                     # Schedule with rate limits
                     progress = st.progress(0)
                     status = st.empty()
-                    debug_info = st.expander("🔍 Debug Info", expanded=False)
                     
                     scheduled_ids = []
                     current_time = scheduled_datetime
-                    
-                    # Log attachment status
-                    with debug_info:
-                        if attachment_path:
-                            st.info(f"📎 Attachment: {attachment_path}")
-                            st.info(f"   Exists: {os.path.exists(attachment_path)}")
-                            if os.path.exists(attachment_path):
-                                st.info(f"   Size: {os.path.getsize(attachment_path) / 1024:.1f} KB")
-                        else:
-                            st.info("📎 No attachment")
                     
                     for i, email_data in enumerate(emails_to_schedule):
                         # Check if we need a batch gap
@@ -344,12 +331,6 @@ with col_btn2:
                             batch_num = i // emails_per_batch + 1
                             current_time += timedelta(minutes=batch_gap_minutes - interval_minutes)
                             status.text(f"⏸️ Batch {batch_num} starting...")
-                        
-                        # Log pre-schedule info
-                        with debug_info:
-                            st.text(f"\n[{i+1}] Scheduling @{email_data['username']}...")
-                            st.text(f"  Email: {email_data['email']}")
-                            st.text(f"  Has attachment: {bool(email_data.get('attachment_path'))}")
                         
                         # Schedule this email
                         result = scheduler.schedule_email(
@@ -365,20 +346,9 @@ with col_btn2:
                         if result['success']:
                             scheduled_ids.append(result['email_id'])
                             status.text(f"✅ [{i+1}/{len(recipients)}] Scheduled @{email_data['username']} for {current_time.strftime('%I:%M %p')}")
-                            with debug_info:
-                                st.text(f"  ✅ Success: email_id={result.get('email_id', 'N/A')}")
                         else:
-                            error_msg = result.get('error', 'Unknown error')
-                            status_code = result.get('status_code', 'N/A')
-                            
-                            # Display in main status
+                            error_msg = result.get('error', 'Unknown error')[:100]  # Truncate long errors
                             status.text(f"❌ [{i+1}/{len(recipients)}] Failed: @{email_data['username']}")
-                            
-                            # Log detailed error in debug
-                            with debug_info:
-                                st.text(f"  ❌ Failed!")
-                                st.text(f"  Status Code: {status_code}")
-                                st.text(f"  Error: {error_msg[:200]}")  # Show more of the error
                             
                             # Log failed emails for review
                             if 'failed_emails' not in st.session_state:
@@ -386,8 +356,7 @@ with col_btn2:
                             st.session_state.failed_emails.append({
                                 'username': email_data['username'],
                                 'email': email_data['email'],
-                                'error': f"Code {status_code}: {error_msg[:100]}",
-                                'full_error': error_msg  # Keep full error for debugging
+                                'error': error_msg
                             })
                         
                         # Update progress
