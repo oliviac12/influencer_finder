@@ -133,7 +133,11 @@ with col1:
 
 <p>I've attached more information about Wonder and our collaboration opportunities for you to review.</p>
 
-<p>Let me know what you think!</p>""",
+<p>Let me know what you think!</p>
+
+<p>Best,<br>
+Olivia<br>
+Unsettled.xyz (brand agency)</p>""",
         height=300,
         help="Use {username} to insert the creator's username"
     )
