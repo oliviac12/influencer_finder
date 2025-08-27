@@ -99,7 +99,8 @@ with col1:
     uploaded_file = st.file_uploader(
         "Upload CSV with recipients",
         type=['csv'],
-        help="CSV should have 'username' and 'email' columns"
+        help="CSV must have 'username' and 'email' columns",
+        key="csv_upload"
     )
     
     # Or manual input
@@ -203,10 +204,35 @@ with col2:
     
     # Parse recipients
     recipients = []
-    if uploaded_file:
-        df = pd.read_csv(uploaded_file)
-        if 'username' in df.columns and 'email' in df.columns:
-            recipients = df[['username', 'email']].to_dict('records')
+    if uploaded_file is not None:
+        try:
+            # Reset file pointer to beginning
+            uploaded_file.seek(0)
+            df = pd.read_csv(uploaded_file)
+            
+            # Debug: Show what columns were found
+            if len(df) > 0:
+                st.info(f"📊 CSV loaded: {len(df)} rows, columns: {', '.join(df.columns)}")
+                
+                # Check for required columns (case-insensitive)
+                columns_lower = {col.lower(): col for col in df.columns}
+                
+                if 'username' in columns_lower and 'email' in columns_lower:
+                    username_col = columns_lower['username']
+                    email_col = columns_lower['email']
+                    recipients = df[[username_col, email_col]].rename(columns={
+                        username_col: 'username',
+                        email_col: 'email'
+                    }).to_dict('records')
+                    
+                    # Filter out empty rows
+                    recipients = [r for r in recipients if r.get('username') and r.get('email')]
+                else:
+                    st.error(f"❌ CSV must have 'username' and 'email' columns. Found: {', '.join(df.columns)}")
+            else:
+                st.warning("⚠️ CSV file is empty")
+        except Exception as e:
+            st.error(f"❌ Error reading CSV: {str(e)}")
     elif manual_input:
         for line in manual_input.strip().split('\n'):
             if ',' in line:
