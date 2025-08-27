@@ -126,8 +126,12 @@ class ZohoNativeScheduler:
         zoho_timezone = timezone_map.get(str(scheduled_time.tzinfo), "America/Los_Angeles")
         
         # Prepare email data for Zoho Mail API
+        # IMPORTANT: fromAddress must be your actual Zoho Mail account email
+        # The SMTP_EMAIL might not be the same as your Zoho account
+        zoho_email = os.getenv('ZOHO_EMAIL', os.getenv('SMTP_EMAIL', 'olivia@unsettled.xyz'))
+        
         email_data = {
-            "fromAddress": from_address or os.getenv('SMTP_EMAIL'),
+            "fromAddress": from_address or zoho_email,
             "toAddress": to_email,
             "subject": subject,
             "content": body,
