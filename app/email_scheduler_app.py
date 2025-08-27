@@ -225,8 +225,22 @@ with col2:
                         email_col: 'email'
                     }).to_dict('records')
                     
-                    # Filter out empty rows
-                    recipients = [r for r in recipients if r.get('username') and r.get('email')]
+                    # Filter out empty rows and validate emails
+                    valid_recipients = []
+                    invalid_count = 0
+                    for r in recipients:
+                        if r.get('username') and r.get('email'):
+                            # Basic email validation
+                            email = str(r.get('email', '')).strip()
+                            if '@' in email and '.' in email:
+                                r['email'] = email  # Use cleaned email
+                                valid_recipients.append(r)
+                            else:
+                                invalid_count += 1
+                    recipients = valid_recipients
+                    
+                    if invalid_count > 0:
+                        st.warning(f"⚠️ Skipped {invalid_count} rows with invalid email addresses")
                 else:
                     st.error(f"❌ CSV must have 'username' and 'email' columns. Found: {', '.join(df.columns)}")
             else:
@@ -309,9 +323,20 @@ with col_btn2:
                     # Schedule with rate limits
                     progress = st.progress(0)
                     status = st.empty()
+                    debug_info = st.expander("🔍 Debug Info", expanded=False)
                     
                     scheduled_ids = []
                     current_time = scheduled_datetime
+                    
+                    # Log attachment status
+                    with debug_info:
+                        if attachment_path:
+                            st.info(f"📎 Attachment: {attachment_path}")
+                            st.info(f"   Exists: {os.path.exists(attachment_path)}")
+                            if os.path.exists(attachment_path):
+                                st.info(f"   Size: {os.path.getsize(attachment_path) / 1024:.1f} KB")
+                        else:
+                            st.info("📎 No attachment")
                     
                     for i, email_data in enumerate(emails_to_schedule):
                         # Check if we need a batch gap
@@ -319,6 +344,12 @@ with col_btn2:
                             batch_num = i // emails_per_batch + 1
                             current_time += timedelta(minutes=batch_gap_minutes - interval_minutes)
                             status.text(f"⏸️ Batch {batch_num} starting...")
+                        
+                        # Log pre-schedule info
+                        with debug_info:
+                            st.text(f"\n[{i+1}] Scheduling @{email_data['username']}...")
+                            st.text(f"  Email: {email_data['email']}")
+                            st.text(f"  Has attachment: {bool(email_data.get('attachment_path'))}")
                         
                         # Schedule this email
                         result = scheduler.schedule_email(
@@ -334,8 +365,30 @@ with col_btn2:
                         if result['success']:
                             scheduled_ids.append(result['email_id'])
                             status.text(f"✅ [{i+1}/{len(recipients)}] Scheduled @{email_data['username']} for {current_time.strftime('%I:%M %p')}")
+                            with debug_info:
+                                st.text(f"  ✅ Success: email_id={result.get('email_id', 'N/A')}")
                         else:
+                            error_msg = result.get('error', 'Unknown error')
+                            status_code = result.get('status_code', 'N/A')
+                            
+                            # Display in main status
                             status.text(f"❌ [{i+1}/{len(recipients)}] Failed: @{email_data['username']}")
+                            
+                            # Log detailed error in debug
+                            with debug_info:
+                                st.text(f"  ❌ Failed!")
+                                st.text(f"  Status Code: {status_code}")
+                                st.text(f"  Error: {error_msg[:200]}")  # Show more of the error
+                            
+                            # Log failed emails for review
+                            if 'failed_emails' not in st.session_state:
+                                st.session_state.failed_emails = []
+                            st.session_state.failed_emails.append({
+                                'username': email_data['username'],
+                                'email': email_data['email'],
+                                'error': f"Code {status_code}: {error_msg[:100]}",
+                                'full_error': error_msg  # Keep full error for debugging
+                            })
                         
                         # Update progress
                         progress.progress((i + 1) / len(recipients))
@@ -344,13 +397,30 @@ with col_btn2:
                         current_time += timedelta(minutes=interval_minutes)
                     
                     # Success message
-                    st.balloons()
-                    st.success(f"""
-                    ✅ **Scheduling Complete!**
-                    - Scheduled: {len(scheduled_ids)} emails
-                    - Failed: {len(recipients) - len(scheduled_ids)}
-                    - Check your Zoho Outbox to verify
-                    """)
+                    if len(scheduled_ids) > 0:
+                        st.balloons()
+                    
+                    if len(scheduled_ids) == len(recipients):
+                        st.success(f"""
+                        ✅ **All emails scheduled successfully!**
+                        - Total: {len(scheduled_ids)} emails
+                        - Check your Zoho Outbox to verify
+                        """)
+                    else:
+                        st.warning(f"""
+                        ⚠️ **Scheduling Complete with some failures**
+                        - Scheduled: {len(scheduled_ids)} emails
+                        - Failed: {len(recipients) - len(scheduled_ids)} emails
+                        - Check your Zoho Outbox for successful ones
+                        """)
+                        
+                        # Show failed emails
+                        if st.session_state.get('failed_emails'):
+                            with st.expander("❌ View Failed Emails"):
+                                for fail in st.session_state.failed_emails:
+                                    st.text(f"@{fail['username']} ({fail['email']})")
+                                    st.caption(f"Error: {fail['error']}")
+                                st.info("Common issues: Invalid email format, authentication errors, or rate limits")
                     
                     # Store results
                     st.session_state.scheduled_count += len(scheduled_ids)
