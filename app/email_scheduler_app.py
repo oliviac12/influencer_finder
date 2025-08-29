@@ -141,7 +141,7 @@ with col1:
 
 <p>This is an affiliate campaign with product sample and performance bonuses on top. We're preparing for the launch in fall and upcoming holiday season and looking for the right creators to partner with during this exciting time.</p>
 
-<p>I've attached more information about Wonder and our collaboration opportunities for you to review. You can also <a href="https://wondertravel.com/creators" style="color: #007bff; text-decoration: none;">learn more about our creator program here</a>.</p>
+<p>I've attached more information about Wonder and our collaboration opportunities for you to review.</p>
 
 <p>Let me know what you think!</p>
 
