@@ -125,7 +125,7 @@ with col1:
     
     email_subject = st.text_input(
         "Subject Line",
-        value="TikTok Shop Collab with Wonder ✨",
+        value="Wonder Partnership Opportunity - TikTok Shop Campaign",
         help="Use {username} to personalize"
     )
     
