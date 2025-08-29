@@ -116,11 +116,11 @@ with col1:
     st.markdown("---")
     st.subheader("📄 Email Template")
     
-    # Campaign name for tracking
-    campaign_name = st.text_input(
+    # Campaign name for tracking (will be updated with template version)
+    base_campaign_name = st.text_input(
         "Campaign Name",
         value=f"wonder_{datetime.now().strftime('%Y%m%d')}",
-        help="Used for tracking email opens"
+        help="Will be appended with template version for A/B testing"
     )
     
     email_subject = st.text_input(
@@ -129,26 +129,82 @@ with col1:
         help="Use {username} to personalize"
     )
     
-    email_template = st.text_area(
-        "Email Body (HTML supported)",
-        value="""<p>Hi {username}!</p>
+    # Email template versions
+    template_v1 = """<p>Hi {username},</p>
 
-<p>I've been following your content on TikTok, and your content really aligns with Wonder's values of choosing your own path and living permission-free. Your authentic approach to sharing your journey really resonates with our brand.</p>
+<p>I'm Olivia from Unsettled.xyz, a brand partnership agency. I've been following your TikTok content and believe your authentic storytelling style would be perfect for our client Wonder's upcoming campaign.</p>
 
-<p>I'm reaching out on behalf of <a href="https://www.instagram.com/wondertravelgear/" style="color: #007bff; text-decoration: none;">Wonder</a>, a design-focused luggage brand. (my client is a luggage manufacturer and have successful products on <a href="https://www.amazon.com/stores/Travelhouse/page/FF7AED26-A513-49EF-99F1-4F60D6622FD4" style="color: #007bff; text-decoration: none;">Amazon</a>/<a href="https://www.walmart.com/c/brand/travelhouse" style="color: #007bff; text-decoration: none;">Walmart</a>, but this is their first attempt to launch a new premium product line with direct to consumer approach in the US)</p>
+<p><a href="https://www.instagram.com/wondertravelgear/" style="color: #007bff; text-decoration: none;">Wonder</a> is a premium luggage brand (by Travelhouse - established on <a href="https://www.amazon.com/stores/Travelhouse/page/FF7AED26-A513-49EF-99F1-4F60D6622FD4" style="color: #007bff; text-decoration: none;">Amazon</a>/<a href="https://www.walmart.com/c/brand/travelhouse" style="color: #007bff; text-decoration: none;">Walmart</a>) launching their first direct-to-consumer line this fall. They're specifically seeking creators who embody independent thinking and authentic lifestyle content.</p>
 
-<p>At the moment, you may not NEED another carry-on, but this brand is quite unique - they position themselves as a travel companion for people who choose their own path, and are on their journey to become the person they want to be. That's why you popped into my head and thought you might be a good fit.</p>
+<p>We're offering:<br>
+• Complimentary Wonder carry-on for review<br>
+• Competitive affiliate commission structure<br>
+• Performance-based bonuses for holiday season<br>
+• Full creative freedom within brand guidelines</p>
 
-<p>This is an affiliate campaign with product sample and performance bonuses on top. We're preparing for the launch in fall and upcoming holiday season and looking for the right creators to partner with during this exciting time.</p>
+<p>I've attached our partnership deck with campaign details and compensation structure. Would you be open to a brief discussion about this opportunity?</p>
 
-<p>I've attached more information about Wonder and our collaboration opportunities for you to review.</p>
+<p>Best regards,<br>
+Olivia Chen<br>
+Partnership Director<br>
+<a href="https://unsettled.xyz" style="color: #007bff; text-decoration: none;">Unsettled.xyz</a></p>"""
 
-<p>Let me know what you think!</p>
+    template_v2 = """<p>Dear {username},</p>
+
+<p>I'm reaching out because your recent travel and lifestyle content on TikTok caught my attention - particularly your authentic approach to storytelling and the genuine connection you have with your audience. This aligns perfectly with a campaign I'm managing.</p>
+
+<p>I represent <a href="https://www.instagram.com/wondertravelgear/" style="color: #007bff; text-decoration: none;">Wonder</a>, a new premium luggage line from Travelhouse (an established manufacturer with strong <a href="https://www.amazon.com/stores/Travelhouse/page/FF7AED26-A513-49EF-99F1-4F60D6622FD4" style="color: #007bff; text-decoration: none;">Amazon</a>/<a href="https://www.walmart.com/c/brand/travelhouse" style="color: #007bff; text-decoration: none;">Walmart</a> presence). Wonder is positioning itself differently - focusing on creators and travelers who value both design and functionality.</p>
+
+<p>For this TikTok Shop campaign launching in Q4 2024, we're selecting a limited number of creators for paid partnerships. The collaboration includes product gifting, competitive commissions, and performance incentives during the holiday shopping season.</p>
+
+<p>I've attached a detailed partnership proposal. Given your audience demographic and engagement rates, I believe this could be mutually beneficial. Are you currently accepting brand partnerships for Q4?</p>
+
+<p>Sincerely,<br>
+Olivia Chen<br>
+<a href="https://unsettled.xyz" style="color: #007bff; text-decoration: none;">Unsettled.xyz</a> | Brand Partnerships</p>"""
+
+    template_v3 = """<p>Hi {username},</p>
+
+<p>Your TikTok content consistently demonstrates the authentic storytelling that resonates with modern audiences - exactly what our client Wonder is seeking for their upcoming launch.</p>
+
+<p>Quick context: <a href="https://www.instagram.com/wondertravelgear/" style="color: #007bff; text-decoration: none;">Wonder</a> is a premium luggage brand entering the direct-to-consumer market this fall. Their parent company, Travelhouse, has proven success on <a href="https://www.amazon.com/stores/Travelhouse/page/FF7AED26-A513-49EF-99F1-4F60D6622FD4" style="color: #007bff; text-decoration: none;">major</a> <a href="https://www.walmart.com/c/brand/travelhouse" style="color: #007bff; text-decoration: none;">retail</a> platforms, and they're now investing significantly in creator partnerships for this new venture.</p>
+
+<p>Why I'm reaching out to you specifically:<br>
+- Your audience aligns with Wonder's target demographic<br>
+- Your content style matches their brand values<br>
+- Your engagement rates exceed our campaign requirements</p>
+
+<p>The partnership includes product sampling, tiered commission structure, and additional performance bonuses for the Q4 holiday period. Full campaign details and compensation terms are in the attached document.</p>
+
+<p>If brand partnerships are something you're exploring, I'd appreciate the opportunity to discuss how this could fit into your content calendar.</p>
 
 <p>Best,<br>
-Olivia<br>
-<a href="https://unsettled.xyz" style="color: #007bff; text-decoration: none;">Unsettled.xyz</a> (brand agency)</p>""",
-        height=300,
+Olivia Chen<br>
+Director of Influencer Relations<br>
+<a href="https://unsettled.xyz" style="color: #007bff; text-decoration: none;">Unsettled.xyz</a></p>"""
+
+    # Template selector
+    template_option = st.selectbox(
+        "Choose Email Template Version",
+        ["Version 1: Concise & Direct", "Version 2: Personalized & Specific", "Version 3: Value-First Approach"],
+        help="Different templates to test which performs better"
+    )
+    
+    # Set template based on selection
+    if template_option == "Version 1: Concise & Direct":
+        selected_template = template_v1
+        template_version = "v1_concise"
+    elif template_option == "Version 2: Personalized & Specific":
+        selected_template = template_v2
+        template_version = "v2_personalized"
+    else:
+        selected_template = template_v3
+        template_version = "v3_value_first"
+    
+    email_template = st.text_area(
+        "Email Body (HTML supported)",
+        value=selected_template,
+        height=400,
         help="Use {username} to insert the creator's username"
     )
     
@@ -329,10 +385,11 @@ with col_btn1:
                         body = email_template.replace('{username}', recipient['username'])
                         subject = email_subject.replace('{username}', recipient['username'])
                         
-                        # Add tracking pixel
+                        # Add tracking pixel with template version in campaign name
+                        campaign_with_version = f"{base_campaign_name}_{template_version}"
                         pixel_html, tracking_id = tracker.get_tracking_pixel_html(
                             username=recipient['username'],
-                            campaign=campaign_name,
+                            campaign=campaign_with_version,
                             recipient_email=recipient['email']
                         )
                         
@@ -370,7 +427,7 @@ with col_btn1:
                             scheduled_time=current_time,
                             attachment_path=email_data.get('attachment_path'),
                             username=email_data.get('username'),
-                            campaign="manual_scheduler"
+                            campaign=campaign_with_version
                         )
                         
                         if result['success']:
@@ -403,7 +460,8 @@ with col_btn1:
                         st.success(f"""
                         ✅ **All emails sent successfully!**
                         - Total: {len(scheduled_ids)} emails
-                        - Campaign: {campaign_name}
+                        - Campaign: {campaign_with_version}
+                        - Template: {template_option}
                         - Tracking: Enabled (email opens will be tracked)
                         - Emails will be delivered within 2-3 minutes
                         """)
@@ -412,7 +470,7 @@ with col_btn1:
                         ⚠️ **Sending Complete with some failures**
                         - Sent: {len(scheduled_ids)} emails
                         - Failed: {len(recipients) - len(scheduled_ids)} emails
-                        - Campaign: {campaign_name}
+                        - Campaign: {campaign_with_version}
                         - Check your Zoho Sent folder for successful ones
                         """)
                         
@@ -458,10 +516,11 @@ with col_btn2:
                         body = email_template.replace('{username}', recipient['username'])
                         subject = email_subject.replace('{username}', recipient['username'])
                         
-                        # Add tracking pixel
+                        # Add tracking pixel with template version in campaign name
+                        campaign_with_version = f"{base_campaign_name}_{template_version}"
                         pixel_html, tracking_id = tracker.get_tracking_pixel_html(
                             username=recipient['username'],
-                            campaign=campaign_name,
+                            campaign=campaign_with_version,
                             recipient_email=recipient['email']
                         )
                         
@@ -499,7 +558,7 @@ with col_btn2:
                             scheduled_time=current_time,
                             attachment_path=email_data.get('attachment_path'),
                             username=email_data.get('username'),
-                            campaign=campaign_name
+                            campaign=campaign_with_version
                         )
                         
                         if result['success']:
@@ -532,7 +591,8 @@ with col_btn2:
                         st.success(f"""
                         ✅ **All emails scheduled successfully!**
                         - Total: {len(scheduled_ids)} emails
-                        - Campaign: {campaign_name}
+                        - Campaign: {campaign_with_version}
+                        - Template: {template_option}
                         - First email: {scheduled_datetime.strftime('%I:%M %p %Z')}
                         - Tracking: Enabled
                         """)
