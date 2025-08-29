@@ -33,8 +33,15 @@ class EmailTrackingManager:
         hash_suffix = hashlib.md5(f"{tracking_id}{timestamp}".encode()).hexdigest()[:6]
         return f"{tracking_id}_{hash_suffix}"
     
-    def get_tracking_pixel_html(self, username, campaign, recipient_email=None):
-        """Generate HTML for tracking pixel and log sent email"""
+    def get_tracking_pixel_html(self, username, campaign, recipient_email=None, is_preview=False):
+        """Generate HTML for tracking pixel and log sent email
+        
+        Args:
+            username: Creator username
+            campaign: Campaign name
+            recipient_email: Recipient's email address
+            is_preview: If True, marks this as a sender preview (won't count in recipient stats)
+        """
         tracking_id = self.generate_tracking_id(username, campaign)
         
         # Save to our local database
@@ -60,6 +67,11 @@ class EmailTrackingManager:
         pixel_url = f"{self.tracking_domain}/track/open?id={tracking_id}&campaign={campaign}&username={username}"
         if recipient_email:
             pixel_url += f"&recipient_email={recipient_email}"
+        
+        # Add sender flag for preview emails
+        if is_preview:
+            pixel_url += "&sender=true"
+        
         return f'<img src="{pixel_url}" width="1" height="1" style="display:none;">', tracking_id
     
     def log_email_sent(self, tracking_id, username, campaign):
