@@ -303,12 +303,145 @@ with col2:
     else:
         st.warning("⚠️ No recipients loaded")
 
-# Schedule button
+# Schedule/Send buttons
 st.markdown("---")
-col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
+col_btn1, col_btn2, col_btn3 = st.columns(3)
+
+with col_btn1:
+    if st.button("📤 Send Now", type="secondary", use_container_width=True, disabled=not recipients):
+        if recipients:
+            with st.spinner(f"Sending {len(recipients)} emails immediately..."):
+                try:
+                    # Initialize scheduler and tracking
+                    scheduler = ZohoNativeScheduler()
+                    tracker = EmailTrackingManager()
+                    
+                    # Use immediate time (2 minutes from now to allow processing)
+                    tz = ZoneInfo(selected_tz)
+                    immediate_time = datetime.now(tz) + timedelta(minutes=2)
+                    
+                    # Prepare emails with tracking
+                    emails_to_schedule = []
+                    for recipient in recipients:
+                        # Replace placeholders in template
+                        body = email_template.replace('{username}', recipient['username'])
+                        subject = email_subject.replace('{username}', recipient['username'])
+                        
+                        # Add tracking pixel
+                        pixel_html, tracking_id = tracker.get_tracking_pixel_html(
+                            username=recipient['username'],
+                            campaign=campaign_name,
+                            recipient_email=recipient['email']
+                        )
+                        
+                        # Add tracking pixel to the email body
+                        tracked_body = f"{body}\n{pixel_html}"
+                        
+                        emails_to_schedule.append({
+                            'username': recipient['username'],
+                            'email': recipient['email'],
+                            'subject': subject,
+                            'body': tracked_body,
+                            'attachment_path': attachment_path,
+                            'tracking_id': tracking_id
+                        })
+                    
+                    # Send immediately with minimal delays
+                    progress = st.progress(0)
+                    status = st.empty()
+                    
+                    scheduled_ids = []
+                    current_time = immediate_time  # Use immediate time instead of scheduled
+                    
+                    for i, email_data in enumerate(emails_to_schedule):
+                        # Check if we need a batch gap
+                        if i > 0 and i % emails_per_batch == 0:
+                            batch_num = i // emails_per_batch + 1
+                            current_time += timedelta(minutes=batch_gap_minutes - interval_minutes)
+                            status.text(f"⏸️ Batch {batch_num} starting...")
+                        
+                        # Schedule this email
+                        result = scheduler.schedule_email(
+                            to_email=email_data['email'],
+                            subject=email_data['subject'],
+                            body=email_data['body'],
+                            scheduled_time=current_time,
+                            attachment_path=email_data.get('attachment_path'),
+                            username=email_data.get('username'),
+                            campaign="manual_scheduler"
+                        )
+                        
+                        if result['success']:
+                            scheduled_ids.append(result['email_id'])
+                            status.text(f"✅ [{i+1}/{len(recipients)}] Sent @{email_data['username']}")
+                        else:
+                            error_msg = result.get('error', 'Unknown error')[:100]  # Truncate long errors
+                            status.text(f"❌ [{i+1}/{len(recipients)}] Failed: @{email_data['username']}")
+                            
+                            # Log failed emails for review
+                            if 'failed_emails' not in st.session_state:
+                                st.session_state.failed_emails = []
+                            st.session_state.failed_emails.append({
+                                'username': email_data['username'],
+                                'email': email_data['email'],
+                                'error': error_msg
+                            })
+                        
+                        # Update progress
+                        progress.progress((i + 1) / len(recipients))
+                        
+                        # For immediate send, use minimal delay (30 seconds between emails)
+                        current_time += timedelta(seconds=30)
+                    
+                    # Success message
+                    if len(scheduled_ids) > 0:
+                        st.balloons()
+                    
+                    if len(scheduled_ids) == len(recipients):
+                        st.success(f"""
+                        ✅ **All emails sent successfully!**
+                        - Total: {len(scheduled_ids)} emails
+                        - Campaign: {campaign_name}
+                        - Tracking: Enabled (email opens will be tracked)
+                        - Emails will be delivered within 2-3 minutes
+                        """)
+                    else:
+                        st.warning(f"""
+                        ⚠️ **Sending Complete with some failures**
+                        - Sent: {len(scheduled_ids)} emails
+                        - Failed: {len(recipients) - len(scheduled_ids)} emails
+                        - Campaign: {campaign_name}
+                        - Check your Zoho Sent folder for successful ones
+                        """)
+                        
+                        # Show failed emails
+                        if st.session_state.get('failed_emails'):
+                            with st.expander("❌ View Failed Emails"):
+                                for fail in st.session_state.failed_emails:
+                                    st.text(f"@{fail['username']} ({fail['email']})")
+                                    st.caption(f"Error: {fail['error']}")
+                                st.info("Common issues: Invalid email format, authentication errors, or rate limits")
+                    
+                    # Store results
+                    st.session_state.scheduled_count += len(scheduled_ids)
+                    st.session_state.scheduling_results.append({
+                        'timestamp': datetime.now(),
+                        'count': len(scheduled_ids),
+                        'campaign': 'manual'
+                    })
+                    
+                    # Cleanup temporary attachment file
+                    if attachment_path and os.path.exists(attachment_path):
+                        try:
+                            os.remove(attachment_path)
+                        except:
+                            pass  # Ignore cleanup errors
+                    
+                except Exception as e:
+                    st.error(f"❌ Error: {str(e)}")
 
 with col_btn2:
-    if st.button("🚀 Schedule Emails", type="primary", use_container_width=True, disabled=not recipients):
+    if st.button("📅 Schedule Emails", type="primary", use_container_width=True, disabled=not recipients):
         if recipients:
             with st.spinner(f"Scheduling {len(recipients)} emails..."):
                 try:
@@ -364,14 +497,14 @@ with col_btn2:
                             scheduled_time=current_time,
                             attachment_path=email_data.get('attachment_path'),
                             username=email_data.get('username'),
-                            campaign="manual_scheduler"
+                            campaign=campaign_name
                         )
                         
                         if result['success']:
                             scheduled_ids.append(result['email_id'])
                             status.text(f"✅ [{i+1}/{len(recipients)}] Scheduled @{email_data['username']} for {current_time.strftime('%I:%M %p')}")
                         else:
-                            error_msg = result.get('error', 'Unknown error')[:100]  # Truncate long errors
+                            error_msg = result.get('error', 'Unknown error')[:100]
                             status.text(f"❌ [{i+1}/{len(recipients)}] Failed: @{email_data['username']}")
                             
                             # Log failed emails for review
@@ -398,16 +531,14 @@ with col_btn2:
                         ✅ **All emails scheduled successfully!**
                         - Total: {len(scheduled_ids)} emails
                         - Campaign: {campaign_name}
-                        - Tracking: Enabled (email opens will be tracked)
-                        - Check your Zoho Outbox to verify
+                        - First email: {scheduled_datetime.strftime('%I:%M %p %Z')}
+                        - Tracking: Enabled
                         """)
                     else:
                         st.warning(f"""
                         ⚠️ **Scheduling Complete with some failures**
                         - Scheduled: {len(scheduled_ids)} emails
                         - Failed: {len(recipients) - len(scheduled_ids)} emails
-                        - Campaign: {campaign_name}
-                        - Check your Zoho Outbox for successful ones
                         """)
                         
                         # Show failed emails
@@ -416,14 +547,13 @@ with col_btn2:
                                 for fail in st.session_state.failed_emails:
                                     st.text(f"@{fail['username']} ({fail['email']})")
                                     st.caption(f"Error: {fail['error']}")
-                                st.info("Common issues: Invalid email format, authentication errors, or rate limits")
                     
                     # Store results
                     st.session_state.scheduled_count += len(scheduled_ids)
                     st.session_state.scheduling_results.append({
                         'timestamp': datetime.now(),
                         'count': len(scheduled_ids),
-                        'campaign': 'manual'
+                        'campaign': campaign_name
                     })
                     
                     # Cleanup temporary attachment file
@@ -431,7 +561,7 @@ with col_btn2:
                         try:
                             os.remove(attachment_path)
                         except:
-                            pass  # Ignore cleanup errors
+                            pass
                     
                 except Exception as e:
                     st.error(f"❌ Error: {str(e)}")
