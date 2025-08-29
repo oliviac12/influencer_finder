@@ -135,7 +135,7 @@ with col1:
 
 <p>I've been following your content on TikTok, and your content really aligns with Wonder's values of choosing your own path and living permission-free. Your authentic approach to sharing your journey really resonates with our brand.</p>
 
-<p>I'm reaching out on behalf of <a href="https://wondertravel.com" style="color: #007bff; text-decoration: none;">Wonder</a>, a design-focused luggage brand. (my client is a luggage manufacturer and have successful products on Amazon/Walmart, but this is their first attempt to launch a new premium product line with direct to consumer approach in the US)</p>
+<p>I'm reaching out on behalf of <a href="https://www.instagram.com/wondertravelgear/" style="color: #007bff; text-decoration: none;">Wonder</a>, a design-focused luggage brand. (my client is a luggage manufacturer and have successful products on <a href="https://www.amazon.com/stores/Travelhouse/page/FF7AED26-A513-49EF-99F1-4F60D6622FD4" style="color: #007bff; text-decoration: none;">Amazon</a>/<a href="https://www.walmart.com/c/brand/travelhouse" style="color: #007bff; text-decoration: none;">Walmart</a>, but this is their first attempt to launch a new premium product line with direct to consumer approach in the US)</p>
 
 <p>At the moment, you may not NEED another carry-on, but this brand is quite unique - they position themselves as a travel companion for people who choose their own path, and are on their journey to become the person they want to be. That's why you popped into my head and thought you might be a good fit.</p>
 
