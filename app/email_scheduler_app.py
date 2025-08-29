@@ -135,17 +135,19 @@ with col1:
 
 <p>I've been following your content on TikTok, and your content really aligns with Wonder's values of choosing your own path and living permission-free. Your authentic approach to sharing your journey really resonates with our brand.</p>
 
-<p>I'm reaching out on behalf of Wonder, a design-focused luggage brand. At the moment, you may not NEED another carry-on, but this brand is quite unique - they position themselves as a travel companion for people who choose their own path, and are on their journey to become the person they want to be. That's why you popped into my head and thought you might be a good fit.</p>
+<p>I'm reaching out on behalf of <a href="https://wondertravel.com" style="color: #007bff; text-decoration: none;">Wonder</a>, a design-focused luggage brand. (my client is a luggage manufacturer and have successful products on Amazon/Walmart, but this is their first attempt to launch a new premium product line with direct to consumer approach in the US)</p>
 
-<p>I don't want this email to sound like we just talk budget - the most important thing is that we love who you are and who you are becoming. This is a commission-based campaign with gifted carry-on and very attractive performance bonuses on top. We're preparing for the launch in fall and upcoming holiday season and looking for the right creators to partner with during this exciting time.</p>
+<p>At the moment, you may not NEED another carry-on, but this brand is quite unique - they position themselves as a travel companion for people who choose their own path, and are on their journey to become the person they want to be. That's why you popped into my head and thought you might be a good fit.</p>
 
-<p>I've attached more information about Wonder and our collaboration opportunities for you to review.</p>
+<p>This is an affiliate campaign with product sample and performance bonuses on top. We're preparing for the launch in fall and upcoming holiday season and looking for the right creators to partner with during this exciting time.</p>
+
+<p>I've attached more information about Wonder and our collaboration opportunities for you to review. You can also <a href="https://wondertravel.com/creators" style="color: #007bff; text-decoration: none;">learn more about our creator program here</a>.</p>
 
 <p>Let me know what you think!</p>
 
 <p>Best,<br>
 Olivia<br>
-Unsettled.xyz (brand agency)</p>""",
+<a href="https://unsettled.xyz" style="color: #007bff; text-decoration: none;">Unsettled.xyz</a> (brand agency)</p>""",
         height=300,
         help="Use {username} to insert the creator's username"
     )
@@ -593,25 +595,22 @@ with col_track1:
                 dashboard_data = response.json()
                 
                 if dashboard_data.get('success'):
-                    st.success("📊 Email Tracking Statistics (Recipient Opens Only)")
+                    st.success("📊 Last 24 Hours Email Stats")
                     
                     # Get stats from dashboard API
                     stats = dashboard_data.get('stats', {})
                     
-                    # Display metrics in columns
+                    # Display 24-hour metrics only
                     col_a, col_b, col_c = st.columns(3)
                     with col_a:
-                        st.metric("📨 Total Sent", stats.get('total_sent', 0))
-                        st.metric("✅ Sent Today", stats.get('sent_today', 0))
+                        st.metric("📤 Sent (24h)", stats.get('sent_24h', 0))
                     with col_b:
-                        st.metric("👀 Total Opens", stats.get('total_opens', 0))
-                        st.metric("📈 Open Rate", f"{stats.get('open_rate', 0):.1f}%")
+                        st.metric("👀 Opens (24h)", stats.get('opens_24h', 0))
                     with col_c:
-                        st.metric("🎯 Unique Opens", stats.get('unique_opens', 0))
-                        st.metric("📊 Opens Today", stats.get('opens_today', 0))
+                        st.metric("📈 Open Rate (24h)", f"{stats.get('open_rate_24h', 0):.1f}%")
                     
                     # Add note about filtering
-                    st.info("💡 These stats exclude your preview opens (sender opens are filtered out)")
+                    st.info("💡 Tracking last 24 hours only • Sender opens excluded")
                     
                     # Link to full dashboard
                     st.markdown("[📊 View Full Dashboard](https://tracking.unsettled.xyz/dashboard)")
