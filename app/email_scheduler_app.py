@@ -147,7 +147,7 @@ with col1:
 <p>Best regards,<br>
 Olivia Chen<br>
 Partnership Director<br>
-<a href="https://unsettled.xyz" style="color: #007bff; text-decoration: none;">Unsettled.xyz</a></p>"""
+Unsettled.xyz</p>"""
 
     template_v2 = """<p>Dear {username},</p>
 
@@ -161,7 +161,7 @@ Partnership Director<br>
 
 <p>Sincerely,<br>
 Olivia Chen<br>
-<a href="https://unsettled.xyz" style="color: #007bff; text-decoration: none;">Unsettled.xyz</a> | Brand Partnerships</p>"""
+Unsettled.xyz | Brand Partnerships</p>"""
 
     template_v3 = """<p>Hi {username},</p>
 
@@ -181,7 +181,7 @@ Olivia Chen<br>
 <p>Best,<br>
 Olivia Chen<br>
 Director of Influencer Relations<br>
-<a href="https://unsettled.xyz" style="color: #007bff; text-decoration: none;">Unsettled.xyz</a></p>"""
+Unsettled.xyz</p>"""
 
     # Template selector
     template_option = st.selectbox(
