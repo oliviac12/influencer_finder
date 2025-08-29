@@ -585,15 +585,31 @@ col_track1, col_track2 = st.columns(2)
 with col_track1:
     if st.button("🔍 View Tracking Stats"):
         tracker = EmailTrackingManager()
-        stats = tracker.get_campaign_stats(campaign_name if 'campaign_name' in locals() else None)
+        stats = tracker.fetch_tracking_stats()
         
-        if stats:
-            st.success("Email Open Statistics:")
-            for campaign, data in stats.items():
-                st.write(f"**Campaign: {campaign}**")
-                st.write(f"- Total Sent: {data['total_sent']}")
-                st.write(f"- Total Opens: {data['total_opens']}")
-                st.write(f"- Open Rate: {data['open_rate']:.1f}%")
+        if stats and stats.get('success'):
+            st.success("📊 Email Tracking Statistics")
+            
+            # Overall stats
+            overall = stats.get('overall', {})
+            col_a, col_b = st.columns(2)
+            with col_a:
+                st.metric("Total Opens", overall.get('total_opens', 0))
+                st.metric("Open Rate", f"{overall.get('open_rate', 0):.1f}%")
+            with col_b:
+                st.metric("Unique Opens", overall.get('unique_opens', 0))
+                st.metric("Recent (24h)", overall.get('recent_opens_24h', 0))
+            
+            # Campaign breakdown
+            campaigns = stats.get('campaigns', {})
+            if campaigns:
+                st.markdown("### Campaign Breakdown")
+                for campaign, data in campaigns.items():
+                    with st.expander(f"📧 {campaign}"):
+                        st.write(f"- Sent: {data.get('sent', 0)}")
+                        st.write(f"- Opens: {data.get('opens', 0)}")
+                        st.write(f"- Unique Opens: {data.get('unique_opens', 0)}")
+                        st.write(f"- Open Rate: {data.get('open_rate', 0):.1f}%")
         else:
             st.info("No tracking data available yet")
 
