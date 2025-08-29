@@ -45,39 +45,60 @@ def home():
 def track_open():
     """
     Track email open via 1x1 pixel
-    Expected parameters: id (email_id), campaign (optional)
+    Expected parameters: id (email_id), campaign (optional), sender (optional flag)
     """
     try:
         # Get tracking parameters
         email_id = request.args.get('id', 'unknown')
         campaign = request.args.get('campaign', 'default')
+        is_sender = request.args.get('sender', 'false').lower() == 'true'
         
         # Get client info
         ip_address = request.environ.get('HTTP_X_FORWARDED_FOR', request.remote_addr)
         user_agent = request.headers.get('User-Agent', '')
         timestamp = datetime.now().isoformat()
         
-        # Log the open event to local SQLite
-        log_email_open(
-            email_id=email_id,
-            campaign=campaign,
-            ip_address=ip_address,
-            user_agent=user_agent,
-            timestamp=timestamp
-        )
-        
-        # Also log to Supabase for dashboard analytics
-        try:
-            supabase = get_supabase()
-            supabase.table('email_opens').insert({
-                'email_id': email_id,
-                'campaign': campaign,
-                'ip_address': ip_address,
-                'user_agent': user_agent,
-                'opened_at': timestamp
-            }).execute()
-        except Exception as e:
-            print(f"Error logging open to Supabase: {e}")
+        # Only log if not a sender preview
+        if not is_sender:
+            # Log the open event to local SQLite
+            log_email_open(
+                email_id=email_id,
+                campaign=campaign,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                timestamp=timestamp
+            )
+            
+            # Also log to Supabase for dashboard analytics
+            try:
+                supabase = get_supabase()
+                supabase.table('email_opens').insert({
+                    'email_id': email_id,
+                    'campaign': campaign,
+                    'ip_address': ip_address,
+                    'user_agent': user_agent,
+                    'opened_at': timestamp,
+                    'is_sender': False  # Explicitly mark as recipient open
+                }).execute()
+            except Exception as e:
+                print(f"Error logging open to Supabase: {e}")
+        else:
+            # Optionally log sender opens separately for debugging
+            print(f"Sender preview opened: {email_id} from campaign {campaign}")
+            
+            # Could log to a separate table or with a flag if you want to track sender previews
+            try:
+                supabase = get_supabase()
+                supabase.table('email_opens').insert({
+                    'email_id': email_id,
+                    'campaign': campaign,
+                    'ip_address': ip_address,
+                    'user_agent': user_agent,
+                    'opened_at': timestamp,
+                    'is_sender': True  # Mark as sender preview
+                }).execute()
+            except Exception as e:
+                print(f"Error logging sender preview to Supabase: {e}")
         
         # Return 1x1 transparent pixel
         return send_file(
@@ -262,7 +283,8 @@ def supabase_dashboard():
         # Get counts from all tables
         scheduled = supabase.table('scheduled_emails').select('id', count='exact').execute()
         sent = supabase.table('sent_emails').select('id', count='exact').execute()
-        opens = supabase.table('email_opens').select('id', count='exact').execute()
+        # Get total opens excluding sender previews
+        opens = supabase.table('email_opens').select('id', count='exact').eq('is_sender', False).execute()
         
         # Get pending emails
         pending = supabase.table('scheduled_emails')\
@@ -286,13 +308,15 @@ def supabase_dashboard():
         
         today_opens = supabase.table('email_opens')\
             .select('id', count='exact')\
+            .eq('is_sender', False)\
             .gte('opened_at', f"{today}T00:00:00")\
             .lte('opened_at', f"{today}T23:59:59")\
             .execute()
         
-        # Get unique opens (distinct email_ids)
+        # Get unique opens (distinct email_ids) - excluding sender opens
         unique_opens = supabase.table('email_opens')\
             .select('email_id', count='exact')\
+            .eq('is_sender', False)\
             .execute()
         
         # Get next 5 scheduled emails
@@ -310,9 +334,10 @@ def supabase_dashboard():
             .limit(10)\
             .execute()
         
-        # Get recent opens
+        # Get recent opens (excluding sender previews)
         recent_opens = supabase.table('email_opens')\
             .select('email_id, campaign, opened_at, ip_address')\
+            .eq('is_sender', False)\
             .order('opened_at', desc=True)\
             .limit(10)\
             .execute()
@@ -501,6 +526,7 @@ def morning_report():
         
         today_opens = supabase.table('email_opens')\
             .select('*')\
+            .eq('is_sender', False)\
             .gte('opened_at', f"{today}T00:00:00")\
             .lte('opened_at', f"{today}T23:59:59")\
             .execute()
@@ -607,6 +633,10 @@ def api_dashboard():
         pending = supabase.table('scheduled_emails').select('id', count='exact').eq('status', 'pending').execute()
         failed = supabase.table('scheduled_emails').select('id', count='exact').eq('status', 'failed').execute()
         
+        # Get opens data (excluding sender opens)
+        opens = supabase.table('email_opens').select('id', count='exact').eq('is_sender', False).execute()
+        unique_opens = supabase.table('email_opens').select('email_id', count='exact').eq('is_sender', False).execute()
+        
         today = datetime.now().date()
         today_sent = supabase.table('sent_emails')\
             .select('id', count='exact')\
@@ -614,15 +644,31 @@ def api_dashboard():
             .lte('sent_at', f"{today}T23:59:59")\
             .execute()
         
+        today_opens = supabase.table('email_opens')\
+            .select('id', count='exact')\
+            .eq('is_sender', False)\
+            .gte('opened_at', f"{today}T00:00:00")\
+            .lte('opened_at', f"{today}T23:59:59")\
+            .execute()
+        
+        # Calculate open rate
+        total_sent = sent.count or 0
+        total_opens = opens.count or 0
+        open_rate = (total_opens / max(total_sent, 1)) * 100 if total_sent > 0 else 0
+        
         return jsonify({
             'success': True,
             'stats': {
                 'total_scheduled': scheduled.count or 0,
-                'total_sent': sent.count or 0,
+                'total_sent': total_sent,
+                'total_opens': total_opens,
+                'unique_opens': unique_opens.count or 0,
+                'open_rate': open_rate,
                 'pending': pending.count or 0,
                 'failed': failed.count or 0,
                 'sent_today': today_sent.count or 0,
-                'success_rate': ((sent.count or 0) / max(scheduled.count or 1, 1)) * 100
+                'opens_today': today_opens.count or 0,
+                'success_rate': (total_sent / max(scheduled.count or 1, 1)) * 100
             },
             'last_updated': datetime.now().isoformat()
         })

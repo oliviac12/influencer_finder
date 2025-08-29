@@ -584,34 +584,55 @@ col_track1, col_track2 = st.columns(2)
 
 with col_track1:
     if st.button("🔍 View Tracking Stats"):
-        tracker = EmailTrackingManager()
-        stats = tracker.fetch_tracking_stats()
-        
-        if stats and stats.get('success'):
-            st.success("📊 Email Tracking Statistics")
+        # Fetch from /api/dashboard endpoint which uses Supabase with sender filtering
+        try:
+            import requests
+            response = requests.get("https://tracking.unsettled.xyz/api/dashboard", timeout=5)
             
-            # Overall stats
-            overall = stats.get('overall', {})
-            col_a, col_b = st.columns(2)
-            with col_a:
-                st.metric("Total Opens", overall.get('total_opens', 0))
-                st.metric("Open Rate", f"{overall.get('open_rate', 0):.1f}%")
-            with col_b:
-                st.metric("Unique Opens", overall.get('unique_opens', 0))
-                st.metric("Recent (24h)", overall.get('recent_opens_24h', 0))
-            
-            # Campaign breakdown
-            campaigns = stats.get('campaigns', {})
-            if campaigns:
-                st.markdown("### Campaign Breakdown")
-                for campaign, data in campaigns.items():
-                    with st.expander(f"📧 {campaign}"):
-                        st.write(f"- Sent: {data.get('sent', 0)}")
-                        st.write(f"- Opens: {data.get('opens', 0)}")
-                        st.write(f"- Unique Opens: {data.get('unique_opens', 0)}")
-                        st.write(f"- Open Rate: {data.get('open_rate', 0):.1f}%")
-        else:
-            st.info("No tracking data available yet")
+            if response.status_code == 200:
+                dashboard_data = response.json()
+                
+                if dashboard_data.get('success'):
+                    st.success("📊 Email Tracking Statistics (Recipient Opens Only)")
+                    
+                    # Get stats from dashboard API
+                    stats = dashboard_data.get('stats', {})
+                    
+                    # Display metrics in columns
+                    col_a, col_b, col_c = st.columns(3)
+                    with col_a:
+                        st.metric("📨 Total Sent", stats.get('total_sent', 0))
+                        st.metric("✅ Sent Today", stats.get('sent_today', 0))
+                    with col_b:
+                        st.metric("👀 Total Opens", stats.get('total_opens', 0))
+                        st.metric("📈 Open Rate", f"{stats.get('open_rate', 0):.1f}%")
+                    with col_c:
+                        st.metric("🎯 Unique Opens", stats.get('unique_opens', 0))
+                        st.metric("📊 Opens Today", stats.get('opens_today', 0))
+                    
+                    # Add note about filtering
+                    st.info("💡 These stats exclude your preview opens (sender opens are filtered out)")
+                    
+                    # Link to full dashboard
+                    st.markdown("[📊 View Full Dashboard](https://tracking.unsettled.xyz/dashboard)")
+                else:
+                    st.error("Failed to fetch dashboard data")
+            else:
+                # Fallback to old method if dashboard endpoint fails
+                tracker = EmailTrackingManager()
+                stats = tracker.fetch_tracking_stats()
+                
+                if stats and stats.get('success'):
+                    st.warning("📊 Email Stats (Note: May include sender opens)")
+                    overall = stats.get('overall', {})
+                    st.metric("Total Opens", overall.get('total_opens', 0))
+                    st.metric("Open Rate", f"{overall.get('open_rate', 0):.1f}%")
+                else:
+                    st.info("No tracking data available yet")
+                    
+        except Exception as e:
+            st.error(f"Error fetching stats: {str(e)}")
+            st.info("[Try viewing stats directly](https://tracking.unsettled.xyz/dashboard)")
 
 with col_track2:
     st.info("""
