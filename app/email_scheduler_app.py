@@ -14,6 +14,7 @@ from io import StringIO
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.zoho_native_scheduler import ZohoNativeScheduler
+from utils.email_tracking_integration import EmailTrackingManager
 
 # Page config
 st.set_page_config(
@@ -114,6 +115,13 @@ with col1:
     # Email template
     st.markdown("---")
     st.subheader("📄 Email Template")
+    
+    # Campaign name for tracking
+    campaign_name = st.text_input(
+        "Campaign Name",
+        value=f"wonder_{datetime.now().strftime('%Y%m%d')}",
+        help="Used for tracking email opens"
+    )
     
     email_subject = st.text_input(
         "Subject Line",
@@ -304,22 +312,34 @@ with col_btn2:
         if recipients:
             with st.spinner(f"Scheduling {len(recipients)} emails..."):
                 try:
-                    # Initialize scheduler
+                    # Initialize scheduler and tracking
                     scheduler = ZohoNativeScheduler()
+                    tracker = EmailTrackingManager()
                     
-                    # Prepare emails
+                    # Prepare emails with tracking
                     emails_to_schedule = []
                     for recipient in recipients:
                         # Replace placeholders in template
                         body = email_template.replace('{username}', recipient['username'])
                         subject = email_subject.replace('{username}', recipient['username'])
                         
+                        # Add tracking pixel
+                        pixel_html, tracking_id = tracker.get_tracking_pixel_html(
+                            username=recipient['username'],
+                            campaign=campaign_name,
+                            recipient_email=recipient['email']
+                        )
+                        
+                        # Add tracking pixel to the email body
+                        tracked_body = f"{body}\n{pixel_html}"
+                        
                         emails_to_schedule.append({
                             'username': recipient['username'],
                             'email': recipient['email'],
                             'subject': subject,
-                            'body': body,
-                            'attachment_path': attachment_path
+                            'body': tracked_body,
+                            'attachment_path': attachment_path,
+                            'tracking_id': tracking_id
                         })
                     
                     # Schedule with rate limits
@@ -377,6 +397,8 @@ with col_btn2:
                         st.success(f"""
                         ✅ **All emails scheduled successfully!**
                         - Total: {len(scheduled_ids)} emails
+                        - Campaign: {campaign_name}
+                        - Tracking: Enabled (email opens will be tracked)
                         - Check your Zoho Outbox to verify
                         """)
                     else:
@@ -384,6 +406,7 @@ with col_btn2:
                         ⚠️ **Scheduling Complete with some failures**
                         - Scheduled: {len(scheduled_ids)} emails
                         - Failed: {len(recipients) - len(scheduled_ids)} emails
+                        - Campaign: {campaign_name}
                         - Check your Zoho Outbox for successful ones
                         """)
                         
@@ -423,6 +446,36 @@ if st.session_state.scheduled_count > 0:
         history_df = pd.DataFrame(st.session_state.scheduling_results)
         st.dataframe(history_df, use_container_width=True)
 
+# Tracking section
+st.markdown("---")
+st.subheader("📈 Email Tracking")
+
+col_track1, col_track2 = st.columns(2)
+
+with col_track1:
+    if st.button("🔍 View Tracking Stats"):
+        tracker = EmailTrackingManager()
+        stats = tracker.get_campaign_stats(campaign_name if 'campaign_name' in locals() else None)
+        
+        if stats:
+            st.success("Email Open Statistics:")
+            for campaign, data in stats.items():
+                st.write(f"**Campaign: {campaign}**")
+                st.write(f"- Total Sent: {data['total_sent']}")
+                st.write(f"- Total Opens: {data['total_opens']}")
+                st.write(f"- Open Rate: {data['open_rate']:.1f}%")
+        else:
+            st.info("No tracking data available yet")
+
+with col_track2:
+    st.info("""
+    **How Tracking Works:**
+    - Invisible pixel added to emails
+    - Tracks when email is opened
+    - Records timestamp and IP
+    - View stats anytime
+    """)
+
 # Help section
 with st.expander("ℹ️ Help & Tips"):
     st.markdown("""
@@ -430,6 +483,12 @@ with st.expander("ℹ️ Help & Tips"):
     Your CSV should have at least these columns:
     - `username`: Creator's username (without @)
     - `email`: Email address
+    
+    ### Campaign & Tracking
+    - Set a unique campaign name for tracking
+    - Each email includes an invisible tracking pixel
+    - View open rates with "View Tracking Stats" button
+    - Track which creators engaged with your emails
     
     ### Rate Limits
     - Zoho allows max 50 emails per hour
@@ -440,9 +499,9 @@ with st.expander("ℹ️ Help & Tips"):
     - Use `{username}` in subject or body to personalize
     
     ### Attachments
-    - Provide full path to attachment file
-    - File must exist on the system
+    - Upload files directly (PDF, DOCX, images)
     - Same attachment is sent to all recipients
+    - Files are automatically cleaned up after sending
     
     ### Timezone
     - Select your timezone in the sidebar
