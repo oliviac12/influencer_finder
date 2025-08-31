@@ -3,6 +3,7 @@ Standalone Email Scheduler App
 Schedule emails via Zoho with rate limit management
 """
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import csv
 from datetime import datetime, timedelta
@@ -186,7 +187,7 @@ Unsettled.xyz</p>"""
     # Template selector
     template_option = st.selectbox(
         "Choose Email Template Version",
-        ["Version 1: Concise & Direct", "Version 2: Personalized & Specific", "Version 3: Value-First Approach"],
+        ["Version 1: Concise & Direct", "Version 2: Personalized & Specific", "Version 3: Value-First Approach", "Custom HTML Template"],
         help="Different templates to test which performs better"
     )
     
@@ -197,16 +198,71 @@ Unsettled.xyz</p>"""
     elif template_option == "Version 2: Personalized & Specific":
         selected_template = template_v2
         template_version = "v2_personalized"
-    else:
+    elif template_option == "Version 3: Value-First Approach":
         selected_template = template_v3
         template_version = "v3_value_first"
+    else:
+        selected_template = ""
+        template_version = "custom_html"
     
-    email_template = st.text_area(
-        "Email Body (HTML supported)",
-        value=selected_template,
-        height=400,
-        help="Use {username} to insert the creator's username"
-    )
+    # HTML Template input with preview
+    if template_option == "Custom HTML Template":
+        st.info("📝 Paste your complete HTML template below. You can include images, styles, and use {username} for personalization.")
+        
+        # Tips for HTML emails
+        with st.expander("💡 HTML Email Tips"):
+            st.markdown("""
+            **Best Practices:**
+            - Use inline CSS styles (not external stylesheets)
+            - Host images on public URLs (e.g., imgur, cloudinary)
+            - Keep width under 600px for mobile compatibility
+            - Use table-based layouts for better email client support
+            - Test with different email clients
+            
+            **Supported:**
+            - `<img src="https://...">` - Images from public URLs
+            - Inline styles: `<p style="color: blue;">`
+            - Basic HTML tags: `<h1>`, `<p>`, `<a>`, `<table>`, etc.
+            - `{username}` placeholder for personalization
+            
+            **Example:**
+            ```html
+            <html>
+            <body style="font-family: Arial, sans-serif;">
+                <div style="max-width: 600px; margin: 0 auto;">
+                    <img src="https://your-image-url.com/header.png" style="width: 100%;">
+                    <h1 style="color: #333;">Hi {username}!</h1>
+                    <p>Your content here...</p>
+                </div>
+            </body>
+            </html>
+            ```
+            """)
+        
+        email_template = st.text_area(
+            "HTML Email Template",
+            value=selected_template,
+            height=400,
+            help="Paste your complete HTML including <html>, <body>, images, etc. Use {username} for personalization"
+        )
+        
+        # HTML Preview
+        if email_template:
+            with st.expander("🔍 Preview HTML Email", expanded=True):
+                # Show preview with a sample username
+                preview_html = email_template.replace('{username}', '@samplecreator')
+                components.html(preview_html, height=600, scrolling=True)
+                
+            # Also show raw HTML for debugging
+            with st.expander("📄 View Raw HTML"):
+                st.code(email_template[:1000] + "..." if len(email_template) > 1000 else email_template, language='html')
+    else:
+        email_template = st.text_area(
+            "Email Body (HTML supported)",
+            value=selected_template,
+            height=400,
+            help="Use {username} to insert the creator's username"
+        )
     
     # Attachment upload
     st.markdown("---")
