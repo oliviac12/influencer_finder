@@ -97,11 +97,16 @@ class AdaptiveRateLimiter:
 
 
 class OptimizedCreatorScreener:
-    def __init__(self, tikapi_key, brightdata_token=None, max_workers=3):
+    def __init__(self, tikapi_key, brightdata_token=None, max_workers=3, early_exit=True, max_posts_to_check=15):
+        # Early exit flag - stop checking posts once shoppable content is found
+        self.early_exit = early_exit
+        # Maximum number of posts to check per creator (default: 15)
+        self.max_posts_to_check = max_posts_to_check
+        
         # API clients
         if brightdata_token:
-            self.data_client = CreatorDataClient(tikapi_key, brightdata_token)
-            print("🔄 Using hybrid client: TikAPI + Bright Data MCP fallback")
+            self.data_client = CreatorDataClient(tikapi_key, brightdata_token, prefer_brightdata=True)
+            print("🌐 Using hybrid client: Bright Data MCP preferred, TikAPI fallback")
         else:
             self.data_client = TikAPIClient(tikapi_key)
             print("🔥 Using TikAPI client only")
@@ -182,6 +187,8 @@ class OptimizedCreatorScreener:
         print(f"🚀 OPTIMIZED Creator Screening")
         print(f"📁 Input: {csv_file}")
         print(f"🔧 Settings: {self.max_workers} workers, adaptive rate limiting")
+        print(f"📹 Max posts to check: {self.max_posts_to_check} videos per creator")
+        print(f"⚡ Early exit mode: {'ON (stop at first shoppable)' if self.early_exit else f'OFF (check all {self.max_posts_to_check} posts)'}")
         print(f"📋 Cache: {len(self.creator_cache)} creators, {len(self.shoppable_cache)} posts cached")
         print("=" * 70)
         
@@ -267,10 +274,13 @@ class OptimizedCreatorScreener:
             
             # Save caches after each chunk
             self._save_all_caches()
+            # Save CSV files after each chunk to prevent data loss
+            self.save_dataframes()
     
     def _fetch_creator_data_parallel(self, creators):
         """Fetch creator data in parallel with rate limiting"""
         creator_data = []
+        creators_processed = 0
         
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             # Submit all tasks
@@ -288,6 +298,14 @@ class OptimizedCreatorScreener:
                     if result:
                         creator_data.append(result)
                         self.rate_limiter.success()
+                        
+                        # Save caches every 5 creators for data safety
+                        if not result.get('from_cache', False):
+                            creators_processed += 1
+                            if creators_processed % 5 == 0:
+                                with self._print_lock:
+                                    print(f"💾 Auto-saving caches after {creators_processed} creators...")
+                                self._save_all_caches()
                 except Exception as e:
                     with self._print_lock:
                         print(f"❌ Error fetching @{creator['username']}: {e}")
@@ -317,12 +335,91 @@ class OptimizedCreatorScreener:
         with self._print_lock:
             print(f"🔄 @{username} - fetching from API...")
         
-        # Fetch from API
-        result = self.data_client.get_creator_analysis(username, post_count=35)
+        # Fetch from API (only 15 posts to speed up)
+        result = self.data_client.get_creator_analysis(username, post_count=15)
         
         if result['success']:
-            # Cache successful result
-            self.creator_cache.set(username, result)
+            # Save to content database IMMEDIATELY (with top_posts_data if available)
+            try:
+                # Check if we have top_posts_data from Bright Data
+                top_posts_data = result.get('top_posts_data', [])
+                profile = result['profile']
+                
+                if top_posts_data:
+                    # We have Bright Data content - save it with rich content
+                    profile_for_db = {
+                        'followers': profile.get('followers', 0),
+                        'nickname': profile.get('nickname', ''),
+                        'biography': profile.get('signature', ''),  # Changed from 'bio' to 'biography'
+                        'email': self._extract_email_from_bio(profile.get('signature', '')),
+                        'verified': profile.get('verified', False),
+                        'language': '',
+                        'is_commerce': False,  # Will be determined later
+                        'last_scraped': datetime.now().isoformat()
+                    }
+                    self.content_db.save_creator_content(
+                        username=username,
+                        profile_data=profile_for_db,
+                        top_posts_data=top_posts_data
+                    )
+                    with self._print_lock:
+                        print(f"   💾 Saved Bright Data content to database")
+                else:
+                    # TikAPI result - convert posts to simplified format for content database
+                    import re
+                    posts = result.get('posts', [])
+                    posts_for_db = []
+                    
+                    for post in posts[:30]:  # Save up to 30 posts
+                        description = post.get('description', '')
+                        
+                        # Extract hashtags from description
+                        hashtags = []
+                        if description:
+                            hashtags = re.findall(r'#\w+', description)
+                            hashtags = [tag.replace('#', '') for tag in hashtags]
+                        
+                        # Format for content database
+                        post_data = {
+                            'id': post.get('id', ''),
+                            'desc': description,
+                            'tags': hashtags,
+                            'date': post.get('create_time', 0),
+                            'likes': post.get('stats', {}).get('likes', 0),
+                            'type': 'video' if not post.get('is_photo_post') else 'photo'
+                        }
+                        posts_for_db.append(post_data)
+                    
+                    if posts_for_db:
+                        profile_for_db = {
+                            'followers': profile.get('followers', 0),
+                            'nickname': profile.get('nickname', ''),
+                            'biography': profile.get('signature', ''),  # Changed from 'bio' to 'biography'
+                            'email': self._extract_email_from_bio(profile.get('signature', '')),
+                            'verified': profile.get('verified', False),
+                            'language': '',
+                            'is_commerce': False,  # Will be determined later
+                            'last_scraped': datetime.now().isoformat()
+                        }
+                        
+                        self.content_db.save_creator_content(
+                            username=username,
+                            profile_data=profile_for_db,
+                            top_posts_data=posts_for_db
+                        )
+                        with self._print_lock:
+                            print(f"   💾 Saved TikAPI data to database")
+            except Exception as e:
+                with self._print_lock:
+                    print(f"   ⚠️ Warning: Could not save content data: {e}")
+            
+            # Cache successful result (without top_posts_data for screening)
+            cache_result = {
+                'success': result['success'],
+                'profile': result['profile'],
+                'posts': result['posts']
+            }
+            self.creator_cache.set(username, cache_result)
             
             return {
                 'username': username,
@@ -354,8 +451,8 @@ class OptimizedCreatorScreener:
             
             posts = data['api_result']['posts']
             
-            # Get recent video posts
-            video_posts = [p for p in posts if not p.get('is_photo_post', False)][:28]
+            # Get recent video posts (limit to max_posts_to_check)
+            video_posts = [p for p in posts if not p.get('is_photo_post', False)][:self.max_posts_to_check]
             
             for post in video_posts:
                 url = post.get('tiktok_url')
@@ -410,7 +507,7 @@ class OptimizedCreatorScreener:
             posts = api_result['posts']
             
             # Process posts and check for shoppable content
-            video_posts = [p for p in posts if not p.get('is_photo_post', False)][:28]
+            video_posts = [p for p in posts if not p.get('is_photo_post', False)][:self.max_posts_to_check]
             shoppable_posts = []
             
             # Collect creator profile data
@@ -429,7 +526,8 @@ class OptimizedCreatorScreener:
                 self.creator_lookup_data.append(creator_lookup_row)
             
             # Check shoppable status for each post
-            for post in video_posts[:10]:  # Check first 10 posts
+            # Check all 28 videos unless early_exit is enabled
+            for post in video_posts:  # Check all video posts (up to 28)
                 url = post.get('tiktok_url')
                 if not url:
                     continue
@@ -459,6 +557,10 @@ class OptimizedCreatorScreener:
                 
                 if is_shoppable:
                     shoppable_posts.append(post)
+                    
+                    # Early exit: found shoppable content, skip remaining posts
+                    if self.early_exit:
+                        break
             
             # Calculate metrics
             avg_views = self._calculate_average_views(video_posts[:5]) if video_posts else 0
@@ -482,48 +584,8 @@ class OptimizedCreatorScreener:
                 'original_data': creator_info
             }
             
-            # Save to content database if qualified
-            if qualified and len(shoppable_posts) > 0:
-                try:
-                    # Prepare posts data for content database
-                    posts_for_db = []
-                    for post in video_posts[:30]:  # Save up to 30 posts
-                        post_data = {
-                            'id': post.get('id', ''),
-                            'desc': post.get('description', ''),
-                            'create_time': post.get('create_time', 0),
-                            'formatted_date': post.get('formatted_date', ''),
-                            'duration': post.get('duration', 0),
-                            'is_photo_post': post.get('is_photo_post', False),
-                            'content_type': post.get('content_type', 'video'),
-                            'tiktok_url': post.get('tiktok_url', ''),
-                            'views': post.get('stats', {}).get('views', 0),
-                            'likes': post.get('stats', {}).get('likes', 0),
-                            'comments': post.get('stats', {}).get('comments', 0),
-                            'shares': post.get('stats', {}).get('shares', 0),
-                            'tags': post.get('hashtags', [])  # Include hashtags if available
-                        }
-                        posts_for_db.append(post_data)
-                    
-                    # Save to content database
-                    self.content_db.save_creator_content(
-                        username=username,
-                        profile_data={
-                            'username': profile['username'],
-                            'nickname': profile['nickname'],
-                            'bio': profile.get('signature', ''),
-                            'followers': profile['followers'],
-                            'following': profile['following'],
-                            'videos': profile['videos'],
-                            'verified': profile['verified'],
-                            'sec_uid': profile.get('sec_uid', ''),
-                            'email': profile.get('email', '')  # Include email if extracted
-                        },
-                        top_posts_data=posts_for_db
-                    )
-                except Exception as e:
-                    with self._print_lock:
-                        print(f"   ⚠️ Warning: Could not save @{username} to content database: {e}")
+            # Note: Content database saving now happens immediately after fetch in _fetch_single_creator
+            # This ensures ALL creators get saved, not just qualified ones
             
             # Add to results
             with self._results_lock:
@@ -542,6 +604,26 @@ class OptimizedCreatorScreener:
             return 0
         total_views = sum(post.get('stats', {}).get('views', 0) for post in posts)
         return total_views // len(posts)
+    
+    def _extract_email_from_bio(self, bio):
+        """Extract email from bio text"""
+        import re
+        if not bio:
+            return ""
+        
+        # Look for email patterns
+        email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
+        matches = re.findall(email_pattern, bio)
+        
+        if matches:
+            # Return the first valid-looking email
+            for email in matches:
+                # Skip if it's just an @ mention
+                if not any(char.isdigit() for char in email.split('@')[0]):
+                    return email.lower()
+            return matches[0].lower() if matches else ""
+        
+        return ""
     
     def _load_all_caches(self):
         """Load all caches from disk"""
@@ -645,7 +727,7 @@ class OptimizedCreatorScreener:
             print(f"  • Location: {self.content_db.db_path}")
 
 
-def run_optimized_screening(input_csv_file, max_workers=3):
+def run_optimized_screening(input_csv_file, max_workers=3, early_exit=True, max_posts_to_check=28):
     """Run optimized screening with all improvements"""
     import sys
     import traceback
@@ -655,18 +737,22 @@ def run_optimized_screening(input_csv_file, max_workers=3):
     print(f"⏰ Timestamp: {timestamp}")
     print(f"📂 Input file: {input_csv_file}")
     print(f"🔧 Workers: {max_workers}")
+    print(f"📹 Max posts: {max_posts_to_check}")
+    print(f"⚡ Early exit: {'ON' if early_exit else 'OFF'}")
     print("=" * 70)
     
     try:
         # API Keys
         TIKAPI_KEY = "iLLGx2LbZskKRHGcZF7lcilNoL6BPNGeJM1p0CFgoVaD2Nnx"
-        BRIGHTDATA_TOKEN = "36c74962-d03a-41c1-b261-7ea4109ec8bd"
+        BRIGHTDATA_TOKEN = "ddbb0138-fb46-4f00-a9f9-ce085a84dbce"
         
         # Initialize optimized screener
         screener = OptimizedCreatorScreener(
             TIKAPI_KEY,
             brightdata_token=BRIGHTDATA_TOKEN,
-            max_workers=max_workers
+            max_workers=max_workers,
+            early_exit=early_exit,
+            max_posts_to_check=max_posts_to_check
         )
         
         # Check if input file exists

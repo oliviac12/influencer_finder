@@ -229,7 +229,7 @@ class MissingCreatorBackfiller:
 if __name__ == "__main__":
     # API keys
     TIKAPI_KEY = "iLLGx2LbZskKRHGcZF7lcilNoL6BPNGeJM1p0CFgoVaD2Nnx"
-    BRIGHTDATA_TOKEN = "36c74962-d03a-41c1-b261-7ea4109ec8bd"
+    BRIGHTDATA_TOKEN = "ddbb0138-fb46-4f00-a9f9-ce085a84dbce"
     
     # Run the missing creator backfill
     backfiller = MissingCreatorBackfiller(TIKAPI_KEY, BRIGHTDATA_TOKEN)

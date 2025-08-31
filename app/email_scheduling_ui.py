@@ -11,9 +11,13 @@ from zoneinfo import ZoneInfo
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 try:
-    from utils.supabase_scheduler import SupabaseEmailScheduler as EmailScheduler
+    from utils.zoho_native_scheduler import ZohoNativeScheduler as EmailScheduler
 except ImportError:
-    from utils.email_scheduler import EmailScheduler
+    # Fallback to Supabase if Zoho not configured
+    try:
+        from utils.supabase_scheduler import SupabaseEmailScheduler as EmailScheduler
+    except ImportError:
+        from utils.email_scheduler import EmailScheduler
 
 
 def render_scheduling_section(email_manager, drafts, current_campaign, attachment_path=None, app=None, brand_name="Wonder", your_name="Olivia"):

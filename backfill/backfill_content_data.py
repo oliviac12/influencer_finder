@@ -72,7 +72,7 @@ class ContentBackfiller:
                 }
             }
             request_json = json.dumps(request)
-            cmd = f'echo {repr(request_json)} | API_TOKEN={self.brightdata_token} npx @brightdata/mcp'
+            cmd = f'echo {repr(request_json)} | API_TOKEN={self.brightdata_token} PRO_MODE=true npx @brightdata/mcp'
             
             result = subprocess.run(
                 cmd,
@@ -224,7 +224,7 @@ class ContentBackfiller:
 if __name__ == "__main__":
     # API keys
     TIKAPI_KEY = "iLLGx2LbZskKRHGcZF7lcilNoL6BPNGeJM1p0CFgoVaD2Nnx"
-    BRIGHTDATA_TOKEN = "36c74962-d03a-41c1-b261-7ea4109ec8bd"
+    BRIGHTDATA_TOKEN = "ddbb0138-fb46-4f00-a9f9-ce085a84dbce"
     
     # Initialize backfiller
     backfiller = ContentBackfiller(TIKAPI_KEY, BRIGHTDATA_TOKEN)

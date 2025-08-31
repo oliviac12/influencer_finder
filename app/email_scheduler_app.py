@@ -16,6 +16,7 @@ from io import StringIO
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.zoho_native_scheduler import ZohoNativeScheduler
 from utils.email_tracking_integration import EmailTrackingManager
+from utils.email_database import EmailDatabase
 
 # Page config
 st.set_page_config(
@@ -426,9 +427,10 @@ with col_btn1:
         if recipients:
             with st.spinner(f"Sending {len(recipients)} emails immediately..."):
                 try:
-                    # Initialize scheduler and tracking
+                    # Initialize scheduler, tracking, and database
                     scheduler = ZohoNativeScheduler()
                     tracker = EmailTrackingManager()
+                    email_db = EmailDatabase()
                     
                     # Use immediate time (2 minutes from now to allow processing)
                     tz = ZoneInfo(selected_tz)
@@ -489,6 +491,21 @@ with col_btn1:
                         if result['success']:
                             scheduled_ids.append(result['email_id'])
                             status.text(f"✅ [{i+1}/{len(recipients)}] Sent @{email_data['username']}")
+                            
+                            # Log to database
+                            email_db.log_email_sent(
+                                email_id=result['email_id'],
+                                campaign=campaign_with_version,
+                                recipient_email=email_data['email'],
+                                subject=email_data['subject'],
+                                body_html=email_data['body'],
+                                username=email_data.get('username'),
+                                template_version=template_version,
+                                attachment_name=attachment_file.name if attachment_file else None,
+                                scheduled_at=current_time,
+                                sent_at=datetime.now(),
+                                tracking_id=email_data.get('tracking_id')
+                            )
                         else:
                             error_msg = result.get('error', 'Unknown error')[:100]  # Truncate long errors
                             status.text(f"❌ [{i+1}/{len(recipients)}] Failed: @{email_data['username']}")
@@ -561,9 +578,10 @@ with col_btn2:
         if recipients:
             with st.spinner(f"Scheduling {len(recipients)} emails..."):
                 try:
-                    # Initialize scheduler and tracking
+                    # Initialize scheduler, tracking, and database
                     scheduler = ZohoNativeScheduler()
                     tracker = EmailTrackingManager()
+                    email_db = EmailDatabase()
                     
                     # Prepare emails with tracking
                     emails_to_schedule = []
@@ -789,3 +807,197 @@ with st.expander("ℹ️ Help & Tips"):
     - Select your timezone in the sidebar
     - All times are shown in your selected timezone
     """)
+
+# Email Database Section
+st.markdown("---")
+st.header("📊 Email Database")
+
+# Initialize database
+email_db = EmailDatabase()
+
+# Create tabs for different views
+db_tab1, db_tab2, db_tab3 = st.tabs(["Recent Emails", "Campaign Analytics", "Search & Export"])
+
+with db_tab1:
+    st.subheader("📧 Recently Sent Emails")
+    
+    # Get recent emails
+    recent_emails = email_db.get_recent_emails(limit=100)
+    
+    if recent_emails:
+        # Create DataFrame for display
+        import pandas as pd
+        df = pd.DataFrame(recent_emails)
+        
+        # Format timestamps
+        if 'sent_at' in df.columns:
+            df['sent_at'] = pd.to_datetime(df['sent_at']).dt.strftime('%Y-%m-%d %I:%M %p')
+        if 'first_opened_at' in df.columns:
+            df['first_opened_at'] = pd.to_datetime(df['first_opened_at']).dt.strftime('%Y-%m-%d %I:%M %p')
+        
+        # Display key columns
+        display_cols = ['sent_at', 'username', 'recipient_email', 'subject', 
+                       'campaign', 'template_version', 'opened', 'open_count']
+        display_cols = [col for col in display_cols if col in df.columns]
+        
+        st.dataframe(
+            df[display_cols],
+            use_container_width=True,
+            hide_index=True
+        )
+        
+        # Show total stats
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Total Emails", len(df))
+        with col2:
+            opened_count = df['opened'].sum() if 'opened' in df.columns else 0
+            st.metric("Total Opened", opened_count)
+        with col3:
+            open_rate = (opened_count / len(df) * 100) if len(df) > 0 else 0
+            st.metric("Open Rate", f"{open_rate:.1f}%")
+    else:
+        st.info("No emails sent yet")
+
+with db_tab2:
+    st.subheader("📈 Campaign Performance Analytics")
+    
+    # Get unique campaigns
+    all_emails = email_db.get_recent_emails(limit=10000)
+    if all_emails:
+        campaigns = list(set([e['campaign'] for e in all_emails if e.get('campaign')]))
+        campaigns.sort(reverse=True)
+        
+        if campaigns:
+            selected_campaign = st.selectbox(
+                "Select Campaign",
+                campaigns,
+                help="Choose a campaign to view detailed analytics"
+            )
+            
+            if selected_campaign:
+                # Get base campaign name (without version suffix)
+                base_campaign = selected_campaign.rsplit('_', 2)[0] if '_v' in selected_campaign else selected_campaign
+                
+                # Get campaign stats
+                stats = email_db.get_campaign_stats(base_campaign)
+                
+                if stats:
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric("Sent", stats.get('total_sent', 0))
+                    with col2:
+                        st.metric("Opened", stats.get('total_opened', 0))
+                    with col3:
+                        st.metric("Open Rate", f"{stats.get('open_rate', 0):.1f}%")
+                    with col4:
+                        st.metric("Avg Opens/Email", f"{stats.get('avg_opens_per_email', 0):.1f}")
+                
+                # Template version comparison
+                st.markdown("#### Template Performance Comparison")
+                template_perf = email_db.get_template_performance(base_campaign)
+                
+                if template_perf:
+                    perf_df = pd.DataFrame(template_perf)
+                    
+                    # Create bar chart
+                    st.bar_chart(
+                        data=perf_df.set_index('template_version')['open_rate'],
+                        use_container_width=True
+                    )
+                    
+                    # Show detailed table
+                    st.dataframe(
+                        perf_df,
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                else:
+                    st.info("No template comparison data available yet")
+        else:
+            st.info("No campaigns found")
+    else:
+        st.info("No email data available")
+
+with db_tab3:
+    st.subheader("🔍 Search & Export")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        search_campaign = st.text_input("Search by Campaign", placeholder="e.g., wonder")
+        search_recipient = st.text_input("Search by Recipient", placeholder="email or username")
+    
+    with col2:
+        search_subject = st.text_input("Search by Subject", placeholder="keyword in subject")
+        search_opened = st.checkbox("Show only opened emails")
+    
+    if st.button("🔍 Search", type="primary"):
+        results = email_db.search_emails(
+            campaign=search_campaign if search_campaign else None,
+            recipient=search_recipient if search_recipient else None,
+            subject_contains=search_subject if search_subject else None,
+            opened_only=search_opened
+        )
+        
+        if results:
+            st.success(f"Found {len(results)} emails")
+            
+            # Display results
+            results_df = pd.DataFrame(results)
+            
+            # Format timestamps
+            for col in ['sent_at', 'first_opened_at', 'last_opened_at']:
+                if col in results_df.columns:
+                    results_df[col] = pd.to_datetime(results_df[col]).dt.strftime('%Y-%m-%d %I:%M %p')
+            
+            # Show relevant columns
+            display_cols = ['sent_at', 'username', 'recipient_email', 'subject', 
+                          'campaign', 'template_version', 'opened', 'open_count']
+            display_cols = [col for col in display_cols if col in results_df.columns]
+            
+            st.dataframe(
+                results_df[display_cols],
+                use_container_width=True,
+                hide_index=True
+            )
+            
+            # Export option
+            csv = results_df.to_csv(index=False)
+            st.download_button(
+                label="📥 Download Results as CSV",
+                data=csv,
+                file_name=f"email_search_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv"
+            )
+        else:
+            st.info("No emails found matching your search criteria")
+    
+    # Export all emails
+    st.markdown("---")
+    st.markdown("#### Export All Emails")
+    
+    export_campaign = st.text_input(
+        "Export specific campaign (optional)",
+        placeholder="Leave empty to export all emails"
+    )
+    
+    if st.button("📥 Export to CSV"):
+        export_path = f"cache/email_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        
+        if email_db.export_to_csv(export_path, campaign=export_campaign if export_campaign else None):
+            with open(export_path, 'r') as f:
+                csv_data = f.read()
+            
+            st.download_button(
+                label="📥 Download Export",
+                data=csv_data,
+                file_name=os.path.basename(export_path),
+                mime="text/csv"
+            )
+            
+            # Clean up export file
+            if os.path.exists(export_path):
+                os.remove(export_path)
+        else:
+            st.error("Failed to export emails")

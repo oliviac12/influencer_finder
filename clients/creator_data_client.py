@@ -92,7 +92,7 @@ class CreatorDataClient:
             }
             # Use echo + pipe approach that works
             request_json = json.dumps(request)
-            cmd = f'echo {repr(request_json)} | API_TOKEN={self.brightdata_token} npx @brightdata/mcp'
+            cmd = f'echo {repr(request_json)} | API_TOKEN={self.brightdata_token} PRO_MODE=true npx @brightdata/mcp'
             
             result = subprocess.run(
                 cmd,
@@ -153,13 +153,14 @@ class CreatorDataClient:
                     'error': "Could not parse Bright Data MCP response"
                 }
             
-            # Save content data to database (NEW)
+            # IMPORTANT: Despite the confusing naming from Bright Data:
+            # - top_videos = RECENT posts (chronologically ordered) with playcount values
+            # - top_posts_data = TOP PERFORMING posts (by engagement) for content enrichment
+            # We use top_videos for recent post stats, top_posts_data for content analysis
+            
+            # Note: Content database saving moved to screening script
+            # This allows the screening script to control when/how to save
             top_posts_data = profile_data.get('top_posts_data', [])
-            if top_posts_data:
-                try:
-                    self.content_db.save_creator_content(username, profile_data, top_posts_data)
-                except Exception as e:
-                    print(f"   ⚠️  Warning: Failed to save content data for @{username}: {e}")
             
             # Convert to TikAPI-compatible format
             profile = {
@@ -173,55 +174,110 @@ class CreatorDataClient:
                 'sec_uid': profile_data.get('secu_id', '')
             }
             
-            # Convert posts data
+            # Convert posts data - use top_videos for recent posts with view counts
             posts = []
-            top_videos = profile_data.get('top_videos', [])
             
-            for video in top_videos[:post_count]:
-                # Convert timestamp
-                create_time = 0
-                formatted_date = 'Unknown'
-                if 'create_date' in video:
-                    try:
-                        date_str = video['create_date']
-                        if 'GMT' in date_str:
-                            date_part = date_str.split(' GMT')[0]
-                            dt = datetime.strptime(date_part, "%a %b %d %Y %H:%M:%S")
+            # Get both fields from Bright Data response
+            top_videos = profile_data.get('top_videos', [])  # Recent posts (chronological)
+            top_posts_data = profile_data.get('top_posts_data', [])  # Top performing posts
+            
+            if top_videos:
+                # Process recent videos from top_videos (has view counts)
+                for video in top_videos[:post_count]:
+                    video_id = video.get('video_id', '')
+                    tiktok_url = video.get('video_url', '')
+                    if not tiktok_url and video_id:
+                        tiktok_url = f"https://www.tiktok.com/@{username}/video/{video_id}"
+                    
+                    # Parse create_date from Bright Data format
+                    # Format: "Tue Aug 19 2025 14:13:00 GMT+0000 (Coordinated Universal Time)"
+                    create_time = 0
+                    formatted_date = 'Unknown'
+                    create_date_str = video.get('create_date', '')
+                    if create_date_str:
+                        try:
+                            # Remove the timezone description in parentheses
+                            if 'GMT' in create_date_str:
+                                date_part = create_date_str.split(' GMT')[0] + ' GMT'
+                                # Parse the date
+                                from datetime import datetime
+                                dt = datetime.strptime(date_part.replace(' GMT', ''), '%a %b %d %Y %H:%M:%S')
+                                create_time = int(dt.timestamp())
+                                formatted_date = dt.strftime('%Y-%m-%d %H:%M:%S')
+                        except Exception as e:
+                            # Fallback to dateutil parser
+                            try:
+                                from dateutil import parser
+                                dt = parser.parse(create_date_str)
+                                create_time = int(dt.timestamp())
+                                formatted_date = dt.strftime('%Y-%m-%d %H:%M:%S')
+                            except:
+                                pass
+                    
+                    post_data = {
+                        'id': video_id,
+                        'description': video.get('description', ''),
+                        'create_time': create_time,
+                        'formatted_date': formatted_date,
+                        'duration': 0,
+                        'is_photo_post': False,  # top_videos are videos
+                        'content_type': 'video',
+                        'tiktok_url': tiktok_url,
+                        'stats': {
+                            'views': video.get('playcount', 0),  # Proper view counts from top_videos
+                            'likes': video.get('diggcount', 0),
+                            'comments': video.get('commentcount', 0),
+                            'shares': video.get('share_count', 0)
+                        }
+                    }
+                    
+                    posts.append(post_data)
+            elif top_posts_data:
+                # Fallback: Use top_posts_data if no top_videos (rare case)
+                # WARNING: top_posts_data doesn't have view counts (playcount=0)
+                for post in top_posts_data[:post_count]:
+                    post_id = post.get('post_id', '')
+                    tiktok_url = post.get('post_url', '')
+                    if not tiktok_url and post_id:
+                        tiktok_url = f"https://www.tiktok.com/@{username}/video/{post_id}"
+                    
+                    # Parse create_time
+                    create_time = 0
+                    formatted_date = 'Unknown'
+                    create_time_str = post.get('create_time', '')
+                    if create_time_str:
+                        try:
+                            from dateutil import parser
+                            dt = parser.parse(create_time_str)
                             create_time = int(dt.timestamp())
                             formatted_date = dt.strftime('%Y-%m-%d %H:%M:%S')
-                    except:
-                        pass
-                
-                # Get TikTok URL
-                tiktok_url = video.get('video_url', '')
-                if not tiktok_url:
-                    video_id = video.get('video_id', '')
-                    if video_id:
-                        tiktok_url = f"https://www.tiktok.com/@{username}/video/{video_id}"
-                
-                post_data = {
-                    'id': video.get('video_id', ''),
-                    'description': video.get('description', ''),
-                    'create_time': create_time,
-                    'formatted_date': formatted_date,
-                    'duration': 0,  # Bright Data doesn't provide duration
-                    'is_photo_post': False,  # Assume videos from top_videos
-                    'content_type': 'video',
-                    'tiktok_url': tiktok_url,
-                    'stats': {
-                        'views': video.get('playcount', 0),
-                        'likes': video.get('diggcount', 0),
-                        'comments': video.get('commentcount', 0),
-                        'shares': video.get('share_count', 0)
+                        except:
+                            pass
+                    
+                    post_data = {
+                        'id': post_id,
+                        'description': post.get('description', ''),
+                        'create_time': create_time,
+                        'formatted_date': formatted_date,
+                        'duration': 0,
+                        'is_photo_post': post.get('post_type') == 'photo',
+                        'content_type': post.get('post_type', 'video'),
+                        'tiktok_url': tiktok_url,
+                        'stats': {
+                            'views': 0,  # top_posts_data doesn't have view counts
+                            'likes': post.get('likes', 0),
+                            'comments': 0,
+                            'shares': 0
+                        }
                     }
-                }
-                
-                posts.append(post_data)
+                    
+                    posts.append(post_data)
             
             return {
                 'success': True,
                 'profile': profile,
-                'posts': posts
+                'posts': posts,
+                'top_posts_data': profile_data.get('top_posts_data', [])  # Include top_posts_data in response
             }
             
         except subprocess.TimeoutExpired:
@@ -250,7 +306,7 @@ class CreatorDataClient:
 if __name__ == "__main__":
     # Test with both API keys
     TIKAPI_KEY = "iLLGx2LbZskKRHGcZF7lcilNoL6BPNGeJM1p0CFgoVaD2Nnx"
-    BRIGHTDATA_TOKEN = "36c74962-d03a-41c1-b261-7ea4109ec8bd"
+    BRIGHTDATA_TOKEN = "ddbb0138-fb46-4f00-a9f9-ce085a84dbce"
     
     client = CreatorDataClient(TIKAPI_KEY, BRIGHTDATA_TOKEN)
     

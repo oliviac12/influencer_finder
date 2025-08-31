@@ -288,9 +288,18 @@ class CreatorScreener:
                     # Prepare posts data for content database
                     posts_for_db = []
                     for post in video_posts[:30]:  # Save up to 30 posts
+                        # Extract hashtags from description if not in separate field
+                        description = post.get('description', '')
+                        hashtags = post.get('hashtags', [])
+                        if not hashtags and description:
+                            # Extract hashtags from description
+                            import re
+                            hashtags = re.findall(r'#\w+', description)
+                            hashtags = [tag.replace('#', '') for tag in hashtags]
+                        
                         post_data = {
                             'id': post.get('id', ''),
-                            'desc': post.get('description', ''),
+                            'desc': description,  # Use description field directly
                             'create_time': post.get('create_time', 0),
                             'formatted_date': post.get('formatted_date', ''),
                             'duration': post.get('duration', 0),
@@ -301,7 +310,7 @@ class CreatorScreener:
                             'likes': post.get('stats', {}).get('likes', 0),
                             'comments': post.get('stats', {}).get('comments', 0),
                             'shares': post.get('stats', {}).get('shares', 0),
-                            'tags': post.get('hashtags', [])  # Include hashtags if available
+                            'tags': hashtags
                         }
                         posts_for_db.append(post_data)
                     
@@ -682,7 +691,7 @@ def run_screening(input_csv_file, verbose=True):
     try:
         # API Keys (should be moved to environment variables in production)
         TIKAPI_KEY = "iLLGx2LbZskKRHGcZF7lcilNoL6BPNGeJM1p0CFgoVaD2Nnx"
-        BRIGHTDATA_TOKEN = "36c74962-d03a-41c1-b261-7ea4109ec8bd"
+        BRIGHTDATA_TOKEN = "ddbb0138-fb46-4f00-a9f9-ce085a84dbce"
         
         if verbose:
             print("🔧 Initializing Creator Screener...")

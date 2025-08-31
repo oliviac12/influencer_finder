@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 # API keys
 TIKAPI_KEY = "iLLGx2LbZskKRHGcZF7lcilNoL6BPNGeJM1p0CFgoVaD2Nnx"
-BRIGHTDATA_TOKEN = "36c74962-d03a-41c1-b261-7ea4109ec8bd"
+BRIGHTDATA_TOKEN = "ddbb0138-fb46-4f00-a9f9-ce085a84dbce"
 
 if __name__ == "__main__":
     logger.info("🚀 Starting FULL content data backfill for ALL creators...")
