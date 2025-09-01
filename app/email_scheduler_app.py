@@ -184,30 +184,210 @@ Unsettled.xyz | Brand Partnerships</p>"""
 Olivia Chen<br>
 Director of Influencer Relations<br>
 Unsettled.xyz</p>"""
+    
+    # Professional HTML template with customizable content
+    def get_professional_html_template(username, body_content, signature):
+        """Generate the professional HTML template with custom content"""
+        return f"""<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+    <meta name="format-detection" content="telephone=no"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Brand Collaboration Opportunity</title>
+    <style type="text/css" emogrify="no">#outlook a {{ padding:0; }} .ExternalClass {{ width:100%; }} .ExternalClass, .ExternalClass p, .ExternalClass span, .ExternalClass font, .ExternalClass td, .ExternalClass div {{ line-height: 100%; }} table td {{ border-collapse: collapse; mso-line-height-rule: exactly; }} .editable.image {{ font-size: 0 !important; line-height: 0 !important; }} .nl2go_preheader {{ display: none !important; mso-hide:all !important; mso-line-height-rule: exactly; visibility: hidden !important; line-height: 0px !important; font-size: 0px !important; }} body {{ width:100% !important; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%; margin:0; padding:0; color: #333333; }} img {{ outline:none; text-decoration:none; -ms-interpolation-mode: bicubic; }} a img {{ border:none; }} table {{ border-collapse:collapse; mso-table-lspace:0pt; mso-table-rspace:0pt; }} th {{ font-weight: normal; text-align: left; }} *[class="gmail-fix"] {{ display: none !important; }} </style>
+    <style type="text/css" emogrify="no"> @media (max-width: 600px) {{ .gmx-killpill {{ content: ' \\03D1';}} }} </style>
+    <style type="text/css" emogrify="no">@media (max-width: 600px) {{ .gmx-killpill {{ content: ' \\03D1';}} .r0-o {{ border-style: solid !important; margin: 0 auto 0 auto !important; width: 100% !important }} .r1-c {{ box-sizing: border-box !important; text-align: center !important; valign: top !important; width: 320px !important }} .r2-o {{ border-style: solid !important; margin: 0 auto 0 auto !important; width: 320px !important }} .r3-i {{ padding-bottom: 0px !important; padding-left: 15px !important; padding-right: 15px !important; padding-top: 0px !important }} .r4-c {{ box-sizing: border-box !important; display: block !important; valign: top !important; width: 100% !important }} .r5-o {{ border-style: solid !important; width: 100% !important }} .r10-i {{ background-color: #ffffff !important }} .r11-c {{ box-sizing: border-box !important; text-align: center !important; valign: middle !important; width: 100% !important }} .r12-c {{ box-sizing: border-box !important; display: block !important; valign: middle !important; width: 100% !important }} .r13-o {{ border-bottom-width: 0px !important; border-left-width: 0px !important; border-right-width: 0px !important; border-style: solid !important; border-top-width: 0px !important; margin: 0 auto 0 0 !important; margin-top: 0px !important; width: 100% !important }} .r14-i {{ padding-bottom: 0px !important; padding-right: 0px !important; padding-top: 0px !important }} .r15-c {{ box-sizing: border-box !important; text-align: center !important; valign: top !important; width: 100% !important }} .r16-i {{ padding-bottom: 20px !important; padding-left: 15px !important; padding-right: 15px !important; padding-top: 20px !important }} .r17-i {{ padding-left: 0px !important; padding-right: 0px !important }} .r18-c {{ box-sizing: border-box !important; padding-bottom: 15px !important; padding-top: 0px !important; text-align: left !important; valign: top !important; width: 100% !important }} .r19-i {{ background-color: #181717 !important; padding-bottom: 20px !important; padding-left: 15px !important; padding-right: 15px !important; padding-top: 20px !important }} .r20-o {{ border-style: solid !important; margin: 0 auto 0 auto !important; margin-bottom: 15px !important; margin-top: 15px !important; width: 100% !important }} .r21-i {{ text-align: center !important }} .r22-r {{ background-color: #0a0b0b !important; border-color: #f1ebeb !important; border-radius: 24px !important; border-width: 2px !important; box-sizing: border-box; height: initial !important; padding-bottom: 12px !important; padding-top: 12px !important; text-align: center !important; width: 100% !important }} body {{ -webkit-text-size-adjust: none }} .nl2go-responsive-hide {{ display: none }} .nl2go-body-table {{ min-width: unset !important }} .mobshow {{ height: auto !important; overflow: visible !important; max-height: unset !important; visibility: visible !important; border: none !important }} .resp-table {{ display: inline-table !important }} .magic-resp {{ display: table-cell !important }} }} </style>
+    <!--[if !mso]><!-->
+    <style type="text/css" emogrify="no">@import url("https://fonts.googleapis.com/css2?family=Inter"); </style>
+    <!--<![endif]-->
+    <style type="text/css">p, h1, h2, h3, h4, ol, ul, li {{ margin: 0; }} a, a:link {{ color: #0092ff; text-decoration: underline }} .nl2go-default-textstyle {{ color: #333333; font-family: Inter, arial; font-size: 16px; line-height: 1.5; word-break: break-word }} .default-button {{ color: #ffffff; font-family: Inter, arial; font-size: 16px; font-style: normal; font-weight: normal; line-height: 1.15; text-decoration: none; word-break: break-word }} .default-heading3 {{ color: #333333; font-family: Inter, arial; font-size: 24px; word-break: break-word }} .default-heading4 {{ color: #333333; font-family: Inter, arial; font-size: 18px; word-break: break-word }} .default-heading1 {{ color: #333333; font-family: Inter, arial; font-size: 36px; word-break: break-word }} .default-heading2 {{ color: #333333; font-family: Inter, arial; font-size: 32px; word-break: break-word }} a[x-apple-data-detectors] {{ color: inherit !important; text-decoration: inherit !important; font-size: inherit !important; font-family: inherit !important; font-weight: inherit !important; line-height: inherit !important; }} .no-show-for-you {{ border: none; display: none; float: none; font-size: 0; height: 0; line-height: 0; max-height: 0; mso-hide: all; overflow: hidden; table-layout: fixed; visibility: hidden; width: 0; }} </style>
+    <!--[if mso]>
+    <xml>
+      <o:OfficeDocumentSettings>
+        <o:AllowPNG/>
+        <o:PixelsPerInch>96</o:PixelsPerInch>
+      </o:OfficeDocumentSettings>
+    </xml>
+    <![endif]-->
+    <style type="text/css">a:link{{color: #0092ff; text-decoration: underline;}}</style>
+</head>
+<body bgcolor="#ffffff" text="#3b3f44" link="#0092ff" yahoo="fix" style="background-color: #ffffff; padding-bottom: 0px; padding-top: 0px;">
+    <table cellspacing="0" cellpadding="0" border="0" role="presentation" class="nl2go-body-table" width="100%" style="background-color: #ffffff; width: 100%;">
+      <tbody><tr>
+        <td>
+          <table cellspacing="0" cellpadding="0" border="0" role="presentation" width="600" align="center" class="r2-o" style="table-layout: fixed; width: 600px;">
+            <tbody><tr>
+              <td valign="top" class="r10-i" style="background-color: #ffffff;">
+                <table cellspacing="0" cellpadding="0" border="0" role="presentation" width="100%" align="center" class="r0-o" style="table-layout: fixed; width: 100%;">
+                  <tbody><tr>
+                    <td class="r3-i">
+                      <table width="100%" cellspacing="0" cellpadding="0" border="0" role="presentation">
+                        <tbody><tr>
+                          <th width="100%" valign="middle" class="r12-c" style="font-weight: normal;">
+                            <table cellspacing="0" cellpadding="0" border="0" role="presentation" width="600" align="left" class="r13-o" style="border-bottom-width: 0px; border-collapse: separate; border-left-width: 0px; border-radius: 0px; border-right-width: 0px; border-top-width: 0px; margin-top: 0px; table-layout: fixed; width: 600px;">
+                              <tbody><tr>
+                                <td class="r14-i" style="border-radius: 0px; font-size: 0px; line-height: 0px;">
+                                  <img src="https://i.imgur.com/jORPlBG.jpeg" width="600" border="0" style="display: block; width: 100%; border-radius: 0px;" alt="Wonder Luggage Collection"/>
+                                </td>
+                              </tr>
+                            </tbody></table>
+                          </th>
+                        </tr>
+                      </tbody></table>
+                    </td>
+                  </tr>
+                </tbody></table>
+                <table cellspacing="0" cellpadding="0" border="0" role="presentation" width="100%" align="center" class="r0-o" style="table-layout: fixed; width: 100%;">
+                  <tbody><tr>
+                    <td class="r16-i" style="padding-bottom: 20px; padding-top: 20px;">
+                      <table width="100%" cellspacing="0" cellpadding="0" border="0" role="presentation">
+                        <tbody><tr>
+                          <th width="100%" valign="top" class="r4-c" style="font-weight: normal;">
+                            <table cellspacing="0" cellpadding="0" border="0" role="presentation" width="100%" class="r5-o" style="table-layout: fixed; width: 100%;">
+                              <tbody><tr>
+                                <td valign="top" class="r17-i" style="padding-left: 15px; padding-right: 15px;">
+                                  <table width="100%" cellspacing="0" cellpadding="0" border="0" role="presentation">
+                                    <tbody><tr>
+                                      <td class="r18-c nl2go-default-textstyle" align="left" style="color: #3b3f44; font-family: Inter,arial; font-size: 16px; line-height: 1.5; word-break: break-word; padding-bottom: 15px; padding-top: 15px; text-align: left; valign: top; word-wrap: break-word;">
+                                        <div>
+                                          <p style="margin: 0;">Dear {username},</p><br/>
+                                          {body_content}
+                                          <p style="margin: 0;"> </p><br/>
+                                          {signature}
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  </tbody></table>
+                                </td>
+                              </tr>
+                            </tbody></table>
+                          </th>
+                        </tr>
+                      </tbody></table>
+                    </td>
+                  </tr>
+                </tbody></table>
+                <table cellspacing="0" cellpadding="0" border="0" role="presentation" width="100%" align="center" class="r0-o" style="table-layout: fixed; width: 100%;">
+                  <tbody><tr>
+                    <td class="r19-i" style="background-color: #181717; padding-bottom: 20px; padding-top: 20px;">
+                      <table width="100%" cellspacing="0" cellpadding="0" border="0" role="presentation">
+                        <tbody><tr>
+                          <th width="100%" valign="top" class="r4-c" style="font-weight: normal;">
+                            <table cellspacing="0" cellpadding="0" border="0" role="presentation" width="100%" class="r5-o" style="table-layout: fixed; width: 100%;">
+                              <tbody><tr>
+                                <td valign="top" class="r17-i" style="padding-left: 15px; padding-right: 15px;">
+                                  <table width="100%" cellspacing="0" cellpadding="0" border="0" role="presentation">
+                                    <tbody><tr>
+                                      <td class="r15-c" align="center">
+                                        <table cellspacing="0" cellpadding="0" border="0" role="presentation" width="171" class="r20-o" style="table-layout: fixed; width: 171px;">
+                                          <tbody><tr class="nl2go-responsive-hide">
+                                            <td height="15" style="font-size: 15px; line-height: 15px;">­</td>
+                                          </tr>
+                                          <tr>
+                                            <td height="18" align="center" valign="top" class="r21-i nl2go-default-textstyle" style="color: #3b3f44; font-family: Inter,arial; font-size: 16px; line-height: 1.5; word-break: break-word;">
+                                              <a href="#" class="r22-r default-button" target="_blank" title="Brand Kit" data-btn="1" style="font-style: normal; font-weight: normal; line-height: 1.15; text-decoration: none; word-break: break-word; border-style: solid; word-wrap: break-word; display: block; -webkit-text-size-adjust: none; background-color: #0a0b0b; border-color: #f1ebeb; border-radius: 24px; border-width: 2px; color: #ffffff; font-family: Inter, arial; font-size: 16px; height: 18px; mso-hide: all; padding-bottom: 12px; padding-top: 12px; width: 167px;"> <span>View PDF</span></a>
+                                            </td>
+                                          </tr>
+                                          <tr class="nl2go-responsive-hide">
+                                            <td height="15" style="font-size: 15px; line-height: 15px;">­</td>
+                                          </tr>
+                                        </tbody></table>
+                                      </td>
+                                    </tr>
+                                  </tbody></table>
+                                </td>
+                              </tr>
+                            </tbody></table>
+                          </th>
+                        </tr>
+                      </tbody></table>
+                    </td>
+                  </tr>
+                </tbody></table>
+              </td>
+            </tr>
+          </tbody></table>
+        </td>
+      </tr>
+    </tbody></table>
+</body>
+</html>"""
 
     # Template selector
     template_option = st.selectbox(
         "Choose Email Template Version",
-        ["Version 1: Concise & Direct", "Version 2: Personalized & Specific", "Version 3: Value-First Approach", "Custom HTML Template"],
+        ["Professional HTML Format", "Version 1: Concise & Direct", "Version 2: Personalized & Specific", "Version 3: Value-First Approach", "Custom HTML Template"],
         help="Different templates to test which performs better"
     )
     
     # Set template based on selection
-    if template_option == "Version 1: Concise & Direct":
+    if template_option == "Professional HTML Format":
+        selected_template = ""  # Will be generated dynamically
+        template_version = "professional_html"
+        use_professional_template = True
+    elif template_option == "Version 1: Concise & Direct":
         selected_template = template_v1
         template_version = "v1_concise"
+        use_professional_template = False
     elif template_option == "Version 2: Personalized & Specific":
         selected_template = template_v2
         template_version = "v2_personalized"
+        use_professional_template = False
     elif template_option == "Version 3: Value-First Approach":
         selected_template = template_v3
         template_version = "v3_value_first"
+        use_professional_template = False
     else:
         selected_template = ""
         template_version = "custom_html"
+        use_professional_template = False
+    
+    # Initialize variables for professional template
+    email_body_content = ""
+    email_signature = ""
+    
+    # Professional HTML Format input
+    if template_option == "Professional HTML Format":
+        st.info("✨ Using professional HTML template with Wonder branding. Customize the content below:")
+        
+        # Email body content (without HTML tags, just the content)
+        email_body_content = st.text_area(
+            "Email Body Content",
+            value="""<p>I hope this email finds you well. My name is Olivia, and I am reaching out on behalf of Wonder Luggage.</p>
+
+<p>I have been following your incredible content and your unique style truly resonates with us at Wonder. We are thrilled to introduce our new carry-on line, The Contrast Collection, which will be exclusively featured on our new TikTok Shop.</p>
+
+<p>As someone who embodies a passion for travel and a keen eye for style, we believe your creative vision aligns perfectly with our brand's values. We are excited about the opportunity to collaborate with you to showcase our stylish luggage in a way that reflects your expertise and aesthetic.</p>
+
+<p>If this collaboration sparks your interest, please take a moment to review the attached PDF for more information about Wonder and the collaboration details.</p>""",
+            height=200,
+            help="This content will appear in the main body of the email. HTML tags are supported."
+        )
+        
+        # Email signature
+        email_signature = st.text_area(
+            "Email Signature",
+            value="""<p style="margin: 0;">Best travels,<br/></p>
+<p style="margin: 0;"><span style="font-size: 17px;">Olivia Chen</span><br/>
+<span style="font-size: 17px;">olivia@wonder.world</span><br/>
+<a href="https://wonder-luggage.com/" target="_blank" style="color: #0092ff; text-decoration: underline;">
+<span style="font-size: 17px;">https://wonder-luggage.com/</span></a></p>""",
+            height=100,
+            help="Your signature will appear at the bottom of the email"
+        )
+        
+        # Generate the full HTML template
+        email_template = get_professional_html_template("{username}", email_body_content, email_signature)
+        
+        # Show preview
+        with st.expander("🔍 Preview Professional Email", expanded=True):
+            preview_html = get_professional_html_template("@samplecreator", email_body_content, email_signature)
+            components.html(preview_html, height=800, scrolling=True)
     
     # HTML Template input with preview
-    if template_option == "Custom HTML Template":
+    elif template_option == "Custom HTML Template":
         st.info("📝 Paste your complete HTML template below. You can include images, styles, and use {username} for personalization.")
         
         # Tips for HTML emails
@@ -439,8 +619,18 @@ with col_btn1:
                     # Prepare emails with tracking
                     emails_to_schedule = []
                     for recipient in recipients:
-                        # Replace placeholders in template
-                        body = email_template.replace('{username}', recipient['username'])
+                        # Generate body based on template type
+                        if template_option == "Professional HTML Format":
+                            # Generate professional HTML with username replaced
+                            body = get_professional_html_template(
+                                recipient['username'],
+                                email_body_content.replace('{username}', recipient['username']),
+                                email_signature.replace('{username}', recipient['username'])
+                            )
+                        else:
+                            # Replace placeholders in regular template
+                            body = email_template.replace('{username}', recipient['username'])
+                        
                         subject = email_subject.replace('{username}', recipient['username'])
                         
                         # Add tracking pixel with template version in campaign name
@@ -586,8 +776,18 @@ with col_btn2:
                     # Prepare emails with tracking
                     emails_to_schedule = []
                     for recipient in recipients:
-                        # Replace placeholders in template
-                        body = email_template.replace('{username}', recipient['username'])
+                        # Generate body based on template type
+                        if template_option == "Professional HTML Format":
+                            # Generate professional HTML with username replaced
+                            body = get_professional_html_template(
+                                recipient['username'],
+                                email_body_content.replace('{username}', recipient['username']),
+                                email_signature.replace('{username}', recipient['username'])
+                            )
+                        else:
+                            # Replace placeholders in regular template
+                            body = email_template.replace('{username}', recipient['username'])
+                        
                         subject = email_subject.replace('{username}', recipient['username'])
                         
                         # Add tracking pixel with template version in campaign name
