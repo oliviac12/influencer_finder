@@ -125,6 +125,8 @@ with col1:
         help="Will be appended with template version for A/B testing"
     )
     
+    st.info("✨ All email templates will be automatically wrapped in professional HTML format with Wonder branding, header image, and styled layout.")
+    
     email_subject = st.text_input(
         "Subject Line",
         value="Wonder Partnership Opportunity - TikTok Shop Campaign",
@@ -185,9 +187,9 @@ Olivia Chen<br>
 Director of Influencer Relations<br>
 Unsettled.xyz</p>"""
     
-    # Professional HTML template with customizable content
-    def get_professional_html_template(username, body_content, signature):
-        """Generate the professional HTML template with custom content"""
+    # Professional HTML template wrapper for all email versions
+    def wrap_in_professional_html(body_content):
+        """Wrap any email content in the professional HTML template"""
         return f"""<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
 <head>
@@ -252,10 +254,7 @@ Unsettled.xyz</p>"""
                                     <tbody><tr>
                                       <td class="r18-c nl2go-default-textstyle" align="left" style="color: #3b3f44; font-family: Inter,arial; font-size: 16px; line-height: 1.5; word-break: break-word; padding-bottom: 15px; padding-top: 15px; text-align: left; valign: top; word-wrap: break-word;">
                                         <div>
-                                          <p style="margin: 0;">Dear {username},</p><br/>
                                           {body_content}
-                                          <p style="margin: 0;"> </p><br/>
-                                          {signature}
                                         </div>
                                       </td>
                                     </tr>
@@ -318,76 +317,26 @@ Unsettled.xyz</p>"""
     # Template selector
     template_option = st.selectbox(
         "Choose Email Template Version",
-        ["Professional HTML Format", "Version 1: Concise & Direct", "Version 2: Personalized & Specific", "Version 3: Value-First Approach", "Custom HTML Template"],
-        help="Different templates to test which performs better"
+        ["Version 1: Concise & Direct", "Version 2: Personalized & Specific", "Version 3: Value-First Approach", "Custom HTML Template"],
+        help="All templates will be wrapped in professional HTML format with Wonder branding"
     )
     
     # Set template based on selection
-    if template_option == "Professional HTML Format":
-        selected_template = ""  # Will be generated dynamically
-        template_version = "professional_html"
-        use_professional_template = True
-    elif template_option == "Version 1: Concise & Direct":
+    if template_option == "Version 1: Concise & Direct":
         selected_template = template_v1
         template_version = "v1_concise"
-        use_professional_template = False
     elif template_option == "Version 2: Personalized & Specific":
         selected_template = template_v2
         template_version = "v2_personalized"
-        use_professional_template = False
     elif template_option == "Version 3: Value-First Approach":
         selected_template = template_v3
         template_version = "v3_value_first"
-        use_professional_template = False
     else:
         selected_template = ""
         template_version = "custom_html"
-        use_professional_template = False
-    
-    # Initialize variables for professional template
-    email_body_content = ""
-    email_signature = ""
-    
-    # Professional HTML Format input
-    if template_option == "Professional HTML Format":
-        st.info("✨ Using professional HTML template with Wonder branding. Customize the content below:")
-        
-        # Email body content (without HTML tags, just the content)
-        email_body_content = st.text_area(
-            "Email Body Content",
-            value="""<p>I hope this email finds you well. My name is Olivia, and I am reaching out on behalf of Wonder Luggage.</p>
-
-<p>I have been following your incredible content and your unique style truly resonates with us at Wonder. We are thrilled to introduce our new carry-on line, The Contrast Collection, which will be exclusively featured on our new TikTok Shop.</p>
-
-<p>As someone who embodies a passion for travel and a keen eye for style, we believe your creative vision aligns perfectly with our brand's values. We are excited about the opportunity to collaborate with you to showcase our stylish luggage in a way that reflects your expertise and aesthetic.</p>
-
-<p>If this collaboration sparks your interest, please take a moment to review the attached PDF for more information about Wonder and the collaboration details.</p>""",
-            height=200,
-            help="This content will appear in the main body of the email. HTML tags are supported."
-        )
-        
-        # Email signature
-        email_signature = st.text_area(
-            "Email Signature",
-            value="""<p style="margin: 0;">Best travels,<br/></p>
-<p style="margin: 0;"><span style="font-size: 17px;">Olivia Chen</span><br/>
-<span style="font-size: 17px;">olivia@wonder.world</span><br/>
-<a href="https://wonder-luggage.com/" target="_blank" style="color: #0092ff; text-decoration: underline;">
-<span style="font-size: 17px;">https://wonder-luggage.com/</span></a></p>""",
-            height=100,
-            help="Your signature will appear at the bottom of the email"
-        )
-        
-        # Generate the full HTML template
-        email_template = get_professional_html_template("{username}", email_body_content, email_signature)
-        
-        # Show preview
-        with st.expander("🔍 Preview Professional Email", expanded=True):
-            preview_html = get_professional_html_template("@samplecreator", email_body_content, email_signature)
-            components.html(preview_html, height=800, scrolling=True)
     
     # HTML Template input with preview
-    elif template_option == "Custom HTML Template":
+    if template_option == "Custom HTML Template":
         st.info("📝 Paste your complete HTML template below. You can include images, styles, and use {username} for personalization.")
         
         # Tips for HTML emails
@@ -444,6 +393,13 @@ Unsettled.xyz</p>"""
             height=400,
             help="Use {username} to insert the creator's username"
         )
+        
+        # Show preview of how it will look in professional format
+        if template_option != "Custom HTML Template":
+            with st.expander("🔍 Preview Email in Professional Format", expanded=False):
+                preview_content = email_template.replace('{username}', '@samplecreator')
+                preview_html = wrap_in_professional_html(preview_content)
+                components.html(preview_html, height=800, scrolling=True)
     
     # Attachment upload
     st.markdown("---")
@@ -619,19 +575,15 @@ with col_btn1:
                     # Prepare emails with tracking
                     emails_to_schedule = []
                     for recipient in recipients:
-                        # Generate body based on template type
-                        if template_option == "Professional HTML Format":
-                            # Generate professional HTML with username replaced
-                            body = get_professional_html_template(
-                                recipient['username'],
-                                email_body_content.replace('{username}', recipient['username']),
-                                email_signature.replace('{username}', recipient['username'])
-                            )
-                        else:
-                            # Replace placeholders in regular template
-                            body = email_template.replace('{username}', recipient['username'])
-                        
+                        # Replace placeholders in template
+                        body_content = email_template.replace('{username}', recipient['username'])
                         subject = email_subject.replace('{username}', recipient['username'])
+                        
+                        # Wrap in professional HTML format (except for Custom HTML which is already complete)
+                        if template_option != "Custom HTML Template":
+                            body = wrap_in_professional_html(body_content)
+                        else:
+                            body = body_content
                         
                         # Add tracking pixel with template version in campaign name
                         campaign_with_version = f"{base_campaign_name}_{template_version}"
@@ -776,19 +728,15 @@ with col_btn2:
                     # Prepare emails with tracking
                     emails_to_schedule = []
                     for recipient in recipients:
-                        # Generate body based on template type
-                        if template_option == "Professional HTML Format":
-                            # Generate professional HTML with username replaced
-                            body = get_professional_html_template(
-                                recipient['username'],
-                                email_body_content.replace('{username}', recipient['username']),
-                                email_signature.replace('{username}', recipient['username'])
-                            )
-                        else:
-                            # Replace placeholders in regular template
-                            body = email_template.replace('{username}', recipient['username'])
-                        
+                        # Replace placeholders in template
+                        body_content = email_template.replace('{username}', recipient['username'])
                         subject = email_subject.replace('{username}', recipient['username'])
+                        
+                        # Wrap in professional HTML format (except for Custom HTML which is already complete)
+                        if template_option != "Custom HTML Template":
+                            body = wrap_in_professional_html(body_content)
+                        else:
+                            body = body_content
                         
                         # Add tracking pixel with template version in campaign name
                         campaign_with_version = f"{base_campaign_name}_{template_version}"
