@@ -188,8 +188,16 @@ Director of Influencer Relations<br>
 Unsettled.xyz</p>"""
     
     # Professional HTML template wrapper for all email versions
-    def wrap_in_professional_html(body_content):
-        """Wrap any email content in the professional HTML template"""
+    def wrap_in_professional_html(body_content, pdf_link="#"):
+        """Wrap any email content in the professional HTML template
+        
+        Args:
+            body_content: The email content HTML
+            pdf_link: URL to the PDF attachment (default "#" if no attachment)
+        """
+        # Add line breaks between paragraphs
+        body_content = body_content.replace('</p>', '</p><br/>')
+        
         return f"""<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
 <head>
@@ -268,6 +276,7 @@ Unsettled.xyz</p>"""
                     </td>
                   </tr>
                 </tbody></table>
+                {'' if pdf_link == '#' else f'''
                 <table cellspacing="0" cellpadding="0" border="0" role="presentation" width="100%" align="center" class="r0-o" style="table-layout: fixed; width: 100%;">
                   <tbody><tr>
                     <td class="r19-i" style="background-color: #181717; padding-bottom: 20px; padding-top: 20px;">
@@ -286,7 +295,7 @@ Unsettled.xyz</p>"""
                                           </tr>
                                           <tr>
                                             <td height="18" align="center" valign="top" class="r21-i nl2go-default-textstyle" style="color: #3b3f44; font-family: Inter,arial; font-size: 16px; line-height: 1.5; word-break: break-word;">
-                                              <a href="#" class="r22-r default-button" target="_blank" title="Brand Kit" data-btn="1" style="font-style: normal; font-weight: normal; line-height: 1.15; text-decoration: none; word-break: break-word; border-style: solid; word-wrap: break-word; display: block; -webkit-text-size-adjust: none; background-color: #0a0b0b; border-color: #f1ebeb; border-radius: 24px; border-width: 2px; color: #ffffff; font-family: Inter, arial; font-size: 16px; height: 18px; mso-hide: all; padding-bottom: 12px; padding-top: 12px; width: 167px;"> <span>View PDF</span></a>
+                                              <a href="{pdf_link}" class="r22-r default-button" target="_blank" title="Brand Kit" data-btn="1" style="font-style: normal; font-weight: normal; line-height: 1.15; text-decoration: none; word-break: break-word; border-style: solid; word-wrap: break-word; display: block; -webkit-text-size-adjust: none; background-color: #0a0b0b; border-color: #f1ebeb; border-radius: 24px; border-width: 2px; color: #ffffff; font-family: Inter, arial; font-size: 16px; height: 18px; mso-hide: all; padding-bottom: 12px; padding-top: 12px; width: 167px;"> <span>View PDF</span></a>
                                             </td>
                                           </tr>
                                           <tr class="nl2go-responsive-hide">
@@ -304,7 +313,7 @@ Unsettled.xyz</p>"""
                       </tbody></table>
                     </td>
                   </tr>
-                </tbody></table>
+                </tbody></table>'''}
               </td>
             </tr>
           </tbody></table>
@@ -398,7 +407,8 @@ Unsettled.xyz</p>"""
         if template_option != "Custom HTML Template":
             with st.expander("🔍 Preview Email in Professional Format", expanded=False):
                 preview_content = email_template.replace('{username}', '@samplecreator')
-                preview_html = wrap_in_professional_html(preview_content)
+                preview_pdf_link = pdf_link if 'pdf_link' in locals() else "#"
+                preview_html = wrap_in_professional_html(preview_content, preview_pdf_link)
                 components.html(preview_html, height=800, scrolling=True)
     
     # Attachment upload
@@ -412,6 +422,8 @@ Unsettled.xyz</p>"""
     
     # Save uploaded file temporarily if provided
     attachment_path = None
+    pdf_link = "#"  # Default link if no PDF URL provided
+    
     if attachment_file:
         # Create temp directory if it doesn't exist
         temp_dir = os.path.join(os.path.dirname(__file__), 'temp_attachments')
@@ -423,6 +435,17 @@ Unsettled.xyz</p>"""
             f.write(attachment_file.getbuffer())
         
         st.success(f"✅ Attachment loaded: {attachment_file.name} ({attachment_file.size / 1024:.1f} KB)")
+        
+        # Option to provide a hosted PDF URL
+        pdf_url = st.text_input(
+            "PDF Link URL (optional)",
+            placeholder="https://example.com/brandkit.pdf",
+            help="If you have a hosted version of the PDF, enter the URL here. This will be linked to the 'View PDF' button in the email."
+        )
+        if pdf_url:
+            pdf_link = pdf_url
+        else:
+            st.info("💡 Tip: The PDF will be attached to the email. To link it in the 'View PDF' button, host it online and provide the URL above.")
 
 with col2:
     st.header("⏰ Schedule Settings")
@@ -581,7 +604,7 @@ with col_btn1:
                         
                         # Wrap in professional HTML format (except for Custom HTML which is already complete)
                         if template_option != "Custom HTML Template":
-                            body = wrap_in_professional_html(body_content)
+                            body = wrap_in_professional_html(body_content, pdf_link)
                         else:
                             body = body_content
                         
@@ -734,7 +757,7 @@ with col_btn2:
                         
                         # Wrap in professional HTML format (except for Custom HTML which is already complete)
                         if template_option != "Custom HTML Template":
-                            body = wrap_in_professional_html(body_content)
+                            body = wrap_in_professional_html(body_content, pdf_link)
                         else:
                             body = body_content
                         
