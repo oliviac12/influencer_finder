@@ -657,9 +657,9 @@ with col_btn1:
                             scheduled_ids.append(result['email_id'])
                             status.text(f"✅ [{i+1}/{len(recipients)}] Sent @{email_data['username']}")
                             
-                            # Log to database
+                            # Log to database with TRACKING ID as the primary ID
                             email_db.log_email_sent(
-                                email_id=result['email_id'],
+                                email_id=email_data.get('tracking_id'),  # Use tracking ID, not Zoho's ID
                                 campaign=campaign_with_version,
                                 recipient_email=email_data['email'],
                                 subject=email_data['subject'],
@@ -669,6 +669,7 @@ with col_btn1:
                                 attachment_name=attachment_file.name if attachment_file else None,
                                 scheduled_at=current_time,
                                 sent_at=datetime.now(),
+                                zoho_message_id=result['email_id'],  # Store Zoho's ID separately
                                 tracking_id=email_data.get('tracking_id')
                             )
                         else:
